@@ -16,9 +16,12 @@ const client = new Client({
 
 global.client = client;
 client.commands = new Collection();
-
 loadCommands(client);
+console.log('COMMANDS LOADED:', client.commands.size);
+
 loadEvents(client);
+console.log('EVENTS LOADER FINISHED');
+
 
 // Client-level error and disconnect logging
 client.on('error', (err) => {

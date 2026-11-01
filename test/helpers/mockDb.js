@@ -44,9 +44,8 @@ function createMockSupabase() {
 
   const supabase = {
     from(table) {
-      const builder = makeBuilder(table);
-      state.calls.push({ table, ops: builder._ops = [] });
-      return builder;
+      state.calls.push({ table });
+      return makeBuilder(table);
     },
     rpc(name, args) {
       const ops = [{ op: 'rpc', args: [name, args] }];

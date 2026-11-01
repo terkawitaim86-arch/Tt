@@ -1,6 +1,6 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
+const { PermissionFlagsBits } = require('discord.js');
 const supabase = require('../../utils/db');
+const { infoEmbed, errorEmbed, replyOptions } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'viewlogs',
@@ -10,12 +10,19 @@ module.exports = {
   aliases: ['logs', 'modlogs'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      return message.reply('You need the **Manage Server** permission to use this command.');
+      return message.reply(
+        replyOptions(
+          errorEmbed({
+            title: 'Missing permission',
+            description: 'You need the **Manage Server** permission to use this command.',
+          })
+        )
+      );
     }
 
     const type = args[0]?.toLowerCase();
-    let amount = parseInt(args[type ? 1 : 0], 10);
-    if (isNaN(amount) || amount < 1) amount = 10;
+    let amount = Number.parseInt(args[type ? 1 : 0], 10);
+    if (!Number.isFinite(amount) || amount < 1) amount = 10;
     if (amount > 25) amount = 25;
 
     let query = supabase
@@ -32,28 +39,47 @@ module.exports = {
     const { data, error } = await query;
 
     if (error) {
-      console.error('[viewlogs] Failed:', error.message);
-      return message.reply('Failed to fetch logs. Please try again.');
+      console.error('[viewlogs] failed:', error.message);
+      return message.reply(
+        replyOptions(
+          errorEmbed({
+            title: 'Logs unavailable',
+            description: 'Failed to fetch logs. Please try again.',
+          })
+        )
+      );
     }
 
     if (!data || data.length === 0) {
-      return message.reply('No log entries found.');
+      return message.reply(
+        replyOptions(
+          infoEmbed({
+            title: 'Moderation Logs',
+            description: type ? `No \`${type}\` entries found.` : 'No log entries found.',
+            footer: 'ZMB • Moderation Logs',
+          })
+        )
+      );
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`Moderation Logs${type ? ` — ${type}` : ''}`)
-      .setTimestamp();
+    const shown = data.slice(0, 10);
+    const embed = infoEmbed({
+      title: `Moderation Logs${type ? ` — ${type}` : ''}`,
+      fields: shown.map((entry) => ({
+        name: `${entry.action} — <@${entry.target_id}>`,
+        value: [
+          `**Mod:** <@${entry.moderator_id}>`,
+          `**Reason:** ${(entry.reason || 'None').slice(0, 800)}`,
+          entry.duration ? `**Duration:** ${entry.duration}` : null,
+          `**Date:** <t:${Math.floor(new Date(entry.created_at).getTime() / 1000)}:R>`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        inline: false,
+      })),
+      footer: `Showing ${shown.length} of ${data.length} entries`,
+    });
 
-    const fields = data.slice(0, 10).map((entry) => ({
-      name: `${entry.action} — <@${entry.target_id}>`,
-      value: `**Mod:** <@${entry.moderator_id}>\n**Reason:** ${entry.reason || 'None'}${entry.duration ? `\n**Duration:** ${entry.duration}` : ''}\n**Date:** <t:${Math.floor(new Date(entry.created_at).getTime() / 1000)}:R>`,
-      inline: false,
-    }));
-
-    embed.addFields(fields);
-    embed.setFooter({ text: `Showing ${data.length} of ${data.length} entries` });
-
-    return message.reply({ embeds: [embed] });
+    return message.reply(replyOptions(embed));
   },
 };

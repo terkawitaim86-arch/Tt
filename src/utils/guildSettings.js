@@ -20,11 +20,6 @@ const DEFAULTS = {
   xp_max: 25,
   xp_ignored_channels: [],
   xp_boost_channels: [],
-  anti_spam_enabled: false,
-  anti_spam_threshold: 5,
-  anti_spam_interval_seconds: 3,
-  anti_spam_action: 'timeout',
-  anti_spam_duration_seconds: 600,
 };
 
 async function getSettings(guildId) {

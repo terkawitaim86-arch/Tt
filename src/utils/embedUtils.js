@@ -153,8 +153,8 @@ function createBaseEmbed({
     embed.setFooter({ text: brandFooter(footerContext) });
   }
 
-  if (thumbnail) embed.setThumbnail(String(thumbnail));
-  if (image) embed.setImage(String(image));
+  if (isHttpUrl(thumbnail)) embed.setThumbnail(String(thumbnail));
+  if (isHttpUrl(image)) embed.setImage(String(image));
 
   const safeFields = normalizeFields(fields);
   if (safeFields.length) embed.addFields(safeFields);

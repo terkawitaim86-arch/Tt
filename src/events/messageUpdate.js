@@ -1,6 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../config');
 const { getSettings } = require('../utils/guildSettings');
+const { COLORS, FOOTER_CONTEXT, LIMITS, createBaseEmbed, inlineCode, truncate } = require('../utils/embedUtils');
 
 module.exports = {
   name: 'messageUpdate',
@@ -17,17 +16,25 @@ module.exports = {
 
     const messageLink = `https://discord.com/channels/${newMessage.guild.id}/${newMessage.channelId}/${newMessage.id}`;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('📝 Message Edited')
-      .addFields(
-        { name: 'Author', value: `<@${newMessage.author.id}> (${newMessage.author.tag})`, inline: false },
-        { name: 'Channel', value: `<#${newMessage.channelId}>`, inline: false },
-        { name: 'Before', value: oldMessage.content || 'No content', inline: false },
-        { name: 'After', value: newMessage.content || 'No content', inline: false },
-        { name: 'Jump to Message', value: `[Click here](${messageLink})`, inline: false }
-      )
-      .setTimestamp(newMessage.editedTimestamp || newMessage.createdTimestamp);
+    const embed = createBaseEmbed({
+      title: 'Message Edited',
+      description: `[Jump to message](${messageLink})`,
+      color: COLORS.info,
+      footerContext: FOOTER_CONTEXT.log,
+      fields: [
+        {
+          name: 'Author',
+          value: `${inlineCode(newMessage.author.id)} (${newMessage.author.tag})`,
+          inline: false,
+        },
+        { name: 'Channel', value: `<#${newMessage.channelId}>`, inline: true },
+        { name: 'Before', value: truncate(oldMessage.content || 'No content', LIMITS.fieldValue), inline: false },
+        { name: 'After', value: truncate(newMessage.content || 'No content', LIMITS.fieldValue), inline: false },
+      ],
+    });
+
+    // Show when the message was edited, falling back to when it was sent.
+    embed.setTimestamp(newMessage.editedTimestamp || newMessage.createdTimestamp);
 
     logChannel.send({ embeds: [embed] }).catch((err) =>
       console.error('[messageUpdate] Failed to send log message:', err)

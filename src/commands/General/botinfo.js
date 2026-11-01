@@ -1,5 +1,6 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
+const { infoEmbed, replyOptions } = require('../../utils/embedUtils');
+const { formatNumber } = require('../../utils/format');
 
 module.exports = {
   name: 'botinfo',
@@ -14,20 +15,21 @@ module.exports = {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`About ${config.botName}`)
-      .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-      .addFields(
-        { name: 'Servers', value: `${client.guilds.cache.size}`, inline: true },
-        { name: 'Users', value: `${client.users.cache.size}`, inline: true },
-        { name: 'Commands', value: `${client.commands.size}`, inline: true },
+    const embed = infoEmbed({
+      title: `About ${config.botName}`,
+      description: `${config.botName} — built on discord.js v14.`,
+      thumbnail: client.user.displayAvatarURL({ size: 256 }),
+      fields: [
+        { name: 'Servers', value: formatNumber(client.guilds.cache.size), inline: true },
+        { name: 'Users', value: formatNumber(client.users.cache.size), inline: true },
+        { name: 'Commands', value: formatNumber(client.commands.size), inline: true },
         { name: 'Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
         { name: 'Library', value: 'discord.js v14', inline: true },
-        { name: 'Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true }
-      )
-      .setTimestamp();
+        { name: 'Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true },
+      ],
+      footer: `${config.botName} • Info`,
+    });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply(replyOptions(embed));
   },
 };

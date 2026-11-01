@@ -1,6 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../config');
 const { getSettings } = require('../utils/guildSettings');
+const { COLORS, FOOTER_CONTEXT, LIMITS, createBaseEmbed, inlineCode, truncate } = require('../utils/embedUtils');
 
 module.exports = {
   name: 'messageDelete',
@@ -13,15 +12,27 @@ module.exports = {
     const logChannel = message.guild.channels.cache.get(settings.log_chat_channel_id);
     if (!logChannel) return;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('🗑️ Message Deleted')
-      .addFields(
-        { name: 'Author', value: `<@${message.author.id}> (${message.author.tag})`, inline: false },
+    const embed = createBaseEmbed({
+      title: 'Message Deleted',
+      color: COLORS.warning,
+      footerContext: FOOTER_CONTEXT.log,
+      fields: [
+        {
+          name: 'Author',
+          value: `${inlineCode(message.author.id)} (${message.author.tag})`,
+          inline: false,
+        },
         { name: 'Channel', value: `<#${message.channelId}>`, inline: false },
-        { name: 'Content', value: message.content || 'No content', inline: false }
-      )
-      .setTimestamp(message.createdTimestamp);
+        {
+          name: 'Content',
+          value: truncate(message.content || 'No content', LIMITS.fieldValue),
+          inline: false,
+        },
+      ],
+    });
+
+    // Keep the original message creation time rather than the log time.
+    embed.setTimestamp(message.createdTimestamp);
 
     logChannel.send({ embeds: [embed] }).catch((err) =>
       console.error('[messageDelete] Failed to send log message:', err)

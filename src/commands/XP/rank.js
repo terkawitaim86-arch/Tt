@@ -1,39 +1,71 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
 const { getXpData, levelForXp, getRank } = require('../../utils/xpManager');
+const { getPrefix } = require('../../utils/prefixManager');
+const { infoEmbed, usageErrorEmbed, logCommandError, createBaseEmbed, COLORS } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'rank',
-  description: 'Show your XP rank card or someone else\'s.',
+  description: "Show your XP rank card or someone else's.",
   category: 'XP & Levels',
   usage: 'rank [@user]',
   aliases: ['level', 'xp'],
   async execute(message, args, client) {
     const member = message.mentions.members.first() || message.member;
-    const data = await getXpData(message.guild.id, member.id);
 
-    if (!data) {
-      return message.reply(`<@${member.id}> has no XP yet. Start chatting to earn some!`);
+    try {
+      const data = await getXpData(message.guild.id, member.id);
+
+      if (!data) {
+        const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+        return message.reply({
+          embeds: [
+            infoEmbed({
+              title: 'No XP yet',
+              description: `${member} has not earned XP in this server yet.`,
+              fields: [{ name: 'Start earning', value: `Send a message in a channel where XP is enabled.`, inline: false }],
+              footerContext: 'Levels',
+            }),
+          ],
+          allowedMentions: { repliedUser: false },
+        });
+      }
+
+      const { level, currentXp, neededXp } = levelForXp(data.xp);
+      const { rank, total } = await getRank(message.guild.id, member.id);
+      const progress = neededXp > 0 ? Math.min(100, Math.round((currentXp / neededXp) * 100)) : 100;
+      const filled = Math.max(0, Math.min(10, Math.round(progress / 10)));
+      const bar = '▰'.repeat(filled) + '▱'.repeat(10 - filled);
+
+      return message.reply({
+        embeds: [
+          infoEmbed({
+            title: `${member.displayName}'s rank`,
+            thumbnail: member.user.displayAvatarURL({ size: 128 }),
+            fields: [
+              { name: 'Level', value: `${level}`, inline: true },
+              { name: 'Rank', value: rank ? `#${rank} of ${total}` : 'Unranked', inline: true },
+              { name: 'Total XP', value: Number(data.xp).toLocaleString('en-US'), inline: true },
+              { name: 'Progress to next level', value: `${bar} ${progress}%\n${currentXp} / ${neededXp} XP`, inline: false },
+            ],
+            footerContext: 'Levels',
+          }),
+        ],
+        allowedMentions: { repliedUser: false },
+      });
+    } catch (error) {
+      logCommandError('rank', error);
+      return message.reply({
+        embeds: [
+          createBaseEmbed({
+            title: 'Rank unavailable',
+            description: 'Your rank could not be loaded. Please try again.',
+            color: COLORS.error,
+            footerContext: 'Levels',
+          }),
+        ],
+      });
     }
-
-    const { level, currentXp, neededXp } = levelForXp(data.xp);
-    const { rank, total } = await getRank(message.guild.id, member.id);
-    const progress = Math.round((currentXp / neededXp) * 100);
-    const filled = Math.max(0, Math.min(10, Math.round(progress / 10)));
-    const bar = '▰'.repeat(filled) + '▱'.repeat(10 - filled);
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`${member.displayName}'s Rank`)
-      .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
-      .addFields(
-        { name: 'Level', value: `${level}`, inline: true },
-        { name: 'Rank', value: rank ? `#${rank} / ${total}` : 'Unranked', inline: true },
-        { name: 'Total XP', value: `${Number(data.xp).toLocaleString('en-US')}`, inline: true },
-        { name: 'Progress', value: `${bar} ${progress}%\n${currentXp} / ${neededXp} XP`, inline: false }
-      )
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
   },
 };
+
+module.exports = command;

@@ -1,34 +1,66 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
 const { getLeaderboard } = require('../../utils/xpManager');
+const { getPrefix } = require('../../utils/prefixManager');
+const { infoEmbed, usageErrorEmbed, logCommandError, createBaseEmbed, sanitizeReason, COLORS, LIMITS } = require('../../utils/embedUtils');
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-module.exports = {
+const command = {
   name: 'leaderboard',
   description: 'Show the top 10 members by XP.',
   category: 'XP & Levels',
   usage: 'leaderboard',
   aliases: ['top', 'lb'],
-  async execute(message) {
-    const leaderboard = await getLeaderboard(message.guild.id, 10);
+  async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
 
-    if (leaderboard.length === 0) {
-      return message.reply({ content: 'No XP data yet. Start chatting to earn XP!', allowedMentions: { repliedUser: false } });
+    try {
+      const leaderboard = await getLeaderboard(message.guild.id, 10);
+
+      if (!leaderboard.length) {
+        return message.reply({
+          embeds: [
+            infoEmbed({
+              title: 'No XP yet',
+              description: 'Nobody has earned XP in this server yet. Start chatting to begin.',
+              footerContext: 'Levels',
+            }),
+          ],
+        });
+      }
+
+      const lines = leaderboard.map((entry, index) => {
+        const place = MEDALS[index] || `**#${index + 1}**`;
+        return `${place} <@${entry.user_id}> — level **${entry.level}** · ${Number(entry.xp).toLocaleString('en-US')} XP`;
+      });
+
+      return message.reply({
+        embeds: [
+          infoEmbed({
+            title: 'XP leaderboard',
+            description: lines.join('\n').slice(0, LIMITS.description),
+            author: message.guild
+              ? { name: message.guild.name, iconURL: message.guild.iconURL() || undefined }
+              : undefined,
+            footerContext: 'Top 10 members',
+          }),
+        ],
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    } catch (error) {
+      logCommandError('leaderboard', error);
+      return message.reply({
+        embeds: [
+          createBaseEmbed({
+            title: 'Leaderboard unavailable',
+            description: 'The leaderboard could not be loaded. Please try again.',
+            color: COLORS.error,
+            footerContext: 'Levels',
+          }),
+        ],
+      });
     }
-
-    const lines = leaderboard.map((entry, i) => {
-      const medal = MEDALS[i] || `\`#${i + 1}\``;
-      return `${medal} <@${entry.user_id}>\n┕ Level **${entry.level}** • ${Number(entry.xp).toLocaleString('en-US')} XP`;
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setAuthor({ name: `${message.guild.name} • XP Leaderboard`, iconURL: message.guild.iconURL() || undefined })
-      .setDescription(lines.join('\n'))
-      .setFooter({ text: 'ZMB • Top 10' })
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed], allowedMentions: { parse: [], repliedUser: false } });
   },
 };
+
+module.exports = command;

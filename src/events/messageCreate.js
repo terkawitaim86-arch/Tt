@@ -5,7 +5,15 @@ const { addXp, checkLevelReward } = require('../utils/xpManager');
 const { getAfk, removeAfk, checkAllAfk } = require('../utils/afkManager');
 const { checkCooldown } = require('../utils/cooldowns');
 const { getCustomCommand } = require('../utils/customCommandManager');
-const { EmbedBuilder } = require('discord.js');
+const {
+  COLORS,
+  FOOTER_CONTEXT,
+  createBaseEmbed,
+  infoEmbed,
+  warningEmbed,
+  errorEmbed,
+  sanitizeReason,
+} = require('../utils/embedUtils');
 
 const xpCooldowns = new Map();
 setInterval(() => {
@@ -28,7 +36,17 @@ module.exports = {
       const userAfk = await getAfk(message.guild.id, message.author.id);
       if (userAfk) {
         await removeAfk(message.guild.id, message.author.id);
-        message.reply(`Welcome back <@${message.author.id}>! Your AFK status has been removed.`).catch(() => {});
+        message
+          .reply({
+            embeds: [
+              infoEmbed({
+                title: 'Welcome back',
+                description: `<@${message.author.id}>, your AFK status has been removed.`,
+                footerContext: FOOTER_CONTEXT.info,
+              }),
+            ],
+          })
+          .catch(() => {});
       }
 
       const mentionedIds = message.mentions.users.filter((u) => !u.bot).map((u) => u.id);
@@ -36,7 +54,17 @@ module.exports = {
         const afkUsers = await checkAllAfk(message.guild.id, mentionedIds);
         for (const [userId, afkData] of afkUsers) {
           const timeAgo = `<t:${Math.floor(new Date(afkData.created_at).getTime() / 1000)}:R>`;
-          message.channel.send(`<@${userId}> is AFK: **${afkData.reason}** (since ${timeAgo})`).catch(() => {});
+          const embed = infoEmbed({
+            title: 'Member is AFK',
+            description: `<@${userId}> is currently away.`,
+            fields: [
+              { name: 'Reason', value: sanitizeReason(afkData.reason), inline: false },
+              { name: 'Since', value: timeAgo, inline: true },
+            ],
+            footerContext: FOOTER_CONTEXT.info,
+          });
+
+          message.channel.send({ embeds: [embed] }).catch(() => {});
         }
       }
 
@@ -55,11 +83,13 @@ module.exports = {
             xpCooldowns.set(xpKey, now);
 
             if (result && result.leveledUp) {
-              const embed = new EmbedBuilder()
-                .setColor(config.embedColor)
-                .setTitle('Level Up!')
-                .setDescription(`Congratulations <@${message.author.id}>, you reached **Level ${result.level}**!`)
-                .setTimestamp();
+              const embed = createBaseEmbed({
+                title: 'Level Up',
+                description: `Congratulations <@${message.author.id}>, you reached **Level ${result.level}**!`,
+                color: COLORS.success,
+                footerContext: FOOTER_CONTEXT.info,
+                thumbnail: message.author.displayAvatarURL?.({ size: 128 }),
+              });
 
               message.channel.send({ embeds: [embed] }).catch(() => {});
 
@@ -92,14 +122,35 @@ module.exports = {
         const cdKey = `${message.guild.id}:${message.author.id}:${commandName}`;
         const cd = checkCooldown(cdKey, 3);
         if (cd.onCooldown) {
-          return message.reply(`Please wait **${cd.remaining}s** before using that command again.`).catch(() => {});
+          return message
+            .reply({
+              embeds: [
+                warningEmbed({
+                  title: 'Slow down',
+                  description: `That command is on cooldown. Try again in **${cd.remaining}s**.`,
+                  footerContext: FOOTER_CONTEXT.warning,
+                }),
+              ],
+            })
+            .catch(() => {});
         }
 
         try {
           await command.execute(message, args, client);
         } catch (error) {
+          // Full detail stays in the console; members only see a plain sentence.
           console.error(`[Error] Command "${commandName}" failed:`, error);
-          message.reply('There was an error running that command.').catch(() => {});
+          message
+            .reply({
+              embeds: [
+                errorEmbed({
+                  title: 'Command failed',
+                  description: 'That command could not be completed. Please try again.',
+                  footerContext: FOOTER_CONTEXT.error,
+                }),
+              ],
+            })
+            .catch(() => {});
         }
         return;
       }

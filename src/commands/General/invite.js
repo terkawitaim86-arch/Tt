@@ -1,22 +1,22 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
+const { infoEmbed, replyOptions } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'invite',
-  description: 'Get the bot\'s invite link.',
+  description: "Get the bot's invite link.",
   category: 'General',
   usage: 'invite',
   aliases: [],
   async execute(message, args, client) {
     const inviteLink = `https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`Invite ${config.botName}`)
-      .setDescription(`[Click here to invite me to your server](${inviteLink})`)
-      .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-      .setTimestamp();
+    const embed = infoEmbed({
+      title: `Invite ${config.botName}`,
+      description: `[Click here to invite me to your server](${inviteLink})`,
+      thumbnail: client.user.displayAvatarURL({ size: 256 }),
+      footer: `${config.botName} • Invite`,
+    });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply(replyOptions(embed));
   },
 };

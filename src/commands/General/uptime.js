@@ -1,5 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
+const { infoEmbed, replyOptions } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'uptime',
@@ -14,12 +14,12 @@ module.exports = {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('Bot Uptime')
-      .setDescription(`**${days}** days, **${hours}** hours, **${minutes}** minutes, **${seconds}** seconds`)
-      .setTimestamp();
+    const embed = infoEmbed({
+      title: '⏱️ Bot Uptime',
+      description: `**${days}** days, **${hours}** hours, **${minutes}** minutes, **${seconds}** seconds`,
+      footer: `${config.botName} • Uptime`,
+    });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply(replyOptions(embed));
   },
 };

@@ -3,7 +3,6 @@ const config = require('../config');
 const { getSettings } = require('../utils/guildSettings');
 const { addXp, checkLevelReward } = require('../utils/xpManager');
 const { getAfk, removeAfk, checkAllAfk } = require('../utils/afkManager');
-const { checkAntiSpam } = require('../utils/antiSpam');
 const { checkCooldown } = require('../utils/cooldowns');
 const { getCustomCommand } = require('../utils/customCommandManager');
 const { EmbedBuilder } = require('discord.js');
@@ -17,18 +16,15 @@ module.exports = {
     try {
       const settings = await getSettings(message.guild.id);
 
-      // Anti-spam check (before anything else)
-      const isSpam = await checkAntiSpam(message, settings);
-      if (isSpam) return;
+      // Anti-swear / anti-spam enforcement removed by request.
+      // This code path is intentionally not invoked anymore.
 
-      // AFK: check if user is returning from AFK
       const userAfk = await getAfk(message.guild.id, message.author.id);
       if (userAfk) {
         await removeAfk(message.guild.id, message.author.id);
         message.reply(`Welcome back <@${message.author.id}>! Your AFK status has been removed.`).catch(() => {});
       }
 
-      // AFK: check if message mentions any AFK users
       const mentionedIds = message.mentions.users.filter((u) => !u.bot).map((u) => u.id);
       if (mentionedIds.length > 0) {
         const afkUsers = await checkAllAfk(message.guild.id, mentionedIds);
@@ -38,7 +34,6 @@ module.exports = {
         }
       }
 
-      // XP: award XP for non-command messages
       if (settings.xp_enabled) {
         const ignoredChannels = settings.xp_ignored_channels || [];
         if (!ignoredChannels.includes(message.channel.id)) {
@@ -73,7 +68,6 @@ module.exports = {
         }
       }
 
-      // Prefix handling
       let prefix = config.defaultPrefix;
       if (message.guild) {
         prefix = await getPrefix(message.guild.id);
@@ -86,7 +80,6 @@ module.exports = {
 
       if (!commandName) return;
 
-      // Try built-in command first
       const command = client.commands.get(commandName);
       if (command) {
         const cdKey = `${message.guild.id}:${message.author.id}:${commandName}`;
@@ -104,7 +97,6 @@ module.exports = {
         return;
       }
 
-      // Try custom command
       const customResponse = await getCustomCommand(message.guild.id, commandName);
       if (customResponse) {
         return message.channel.send(customResponse).catch(() => {});

@@ -1,41 +1,54 @@
-const { EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { addReactionRole } = require('../../utils/roleManager');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  infoEmbed,
+  successEmbed,
+  usageErrorEmbed,
+  logCommandError,
+  createBaseEmbed,
+  truncate,
+  COLORS,
+  LIMITS,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const MAX_ROLES = Math.min(20, LIMITS.fields);
+
+const command = {
   name: 'reactionrole',
   description: 'Create a reaction role message. Members react to get a role.',
   category: 'Reaction Roles',
   usage: 'reactionrole <title> | <emoji1> <@role1> | <emoji2> <@role2> ...',
   aliases: ['rr'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      return message.reply('You need the **Manage Roles** permission to use this command.');
+      return fail('You need the **Manage Roles** permission to use this command.', 'Missing permission');
     }
 
-    const fullText = args.join(' ');
-    const parts = fullText.split('|').map((p) => p.trim());
+    const parts = args.join(' ').split('|').map((part) => part.trim()).filter(Boolean);
 
     if (parts.length < 3) {
-      return message.reply('Usage: `reactionrole <title> | <emoji1> <@role1> | <emoji2> <@role2> ...`');
+      return fail('Provide a title and at least two emoji and role pairs separated by `|`.', 'Not enough options');
     }
 
-    const title = parts[0];
+    const title = truncate(parts[0], LIMITS.title);
     const rolePairs = parts.slice(1);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(title)
-      .setDescription('React below to get your role!')
-      .setFooter({ text: `${config.botName} • Reaction Roles` })
-      .setTimestamp();
+    if (rolePairs.length > MAX_ROLES) {
+      return fail(`A reaction role message supports at most ${MAX_ROLES} roles.`, 'Too many roles');
+    }
 
-    const validPairs = [];
+    const parsed = [];
 
     for (const pair of rolePairs) {
       const match = pair.match(/^(\S+)\s+<@&(\d+)>$/);
       if (!match) {
-        return message.reply(`Invalid format: \`${pair}\`. Use \`<emoji> <@role>\`.`);
+        return fail(`\`${truncate(pair, 60)}\` is not a valid option. Use \`<emoji> <@role>\`.`, 'Invalid option');
       }
 
       const emoji = match[1];
@@ -43,30 +56,57 @@ module.exports = {
       const role = message.guild.roles.cache.get(roleId);
 
       if (!role) {
-        return message.reply(`Role not found for \`${pair}\`.`);
+        return fail(`The role in \`${truncate(pair, 60)}\` no longer exists.`, 'Role not found');
       }
 
-      embed.addFields({ name: emoji, value: `<@&${roleId}>`, inline: true });
-      validPairs.push({ emoji, roleId });
+      parsed.push({ emoji, roleId });
     }
 
-    const sentMessage = await message.channel.send({ embeds: [embed] });
-
-    for (const pair of validPairs) {
-      await addReactionRole({
-        guildId: message.guild.id,
-        channelId: message.channel.id,
-        messageId: sentMessage.id,
-        emoji: pair.emoji,
-        roleId: pair.roleId,
+    try {
+      const embed = infoEmbed({
+        title,
+        description: 'React below to receive the matching role.',
+        fields: parsed.map((entry) => ({ name: entry.emoji, value: `<@&${entry.roleId}>`, inline: true })),
+        footerContext: 'Reaction roles',
       });
-      await sentMessage.react(pair.emoji).catch(() => {});
+
+      const sentMessage = await message.channel.send({ embeds: [embed] });
+
+      for (const entry of parsed) {
+        await addReactionRole({
+          guildId: message.guild.id,
+          channelId: message.channel.id,
+          messageId: sentMessage.id,
+          emoji: entry.emoji,
+          roleId: entry.roleId,
+        });
+        await sentMessage.react(entry.emoji).catch(() => {});
+      }
+
+      return message.reply({
+        embeds: [
+          successEmbed({
+            title: 'Reaction roles published',
+            description: `Members can now react for **${parsed.length}** role${parsed.length === 1 ? '' : 's'} in ${message.channel}.`,
+            fields: [{ name: 'Message', value: `[Jump to message](${sentMessage.url})`, inline: false }],
+            footerContext: 'Reaction roles',
+          }),
+        ],
+      });
+    } catch (error) {
+      logCommandError('reactionrole', error);
+      return message.reply({
+        embeds: [
+          createBaseEmbed({
+            title: 'Reaction roles not created',
+            description: 'The reaction role message could not be created. Please try again.',
+            color: COLORS.error,
+            footerContext: 'Reaction roles',
+          }),
+        ],
+      });
     }
-
-    const confirm = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setDescription(`Reaction role message created! [Click here](${sentMessage.url})`);
-
-    return message.reply({ embeds: [confirm] });
   },
 };
+
+module.exports = command;

@@ -335,7 +335,6 @@ function buildCommandEmbed(command, prefix = PREFIX_FALLBACK, options = {}) {
     description: truncate(command.description || 'No description available.', LIMITS.description),
     fields,
     footer,
-    ownerContext: undefined,
     color: COLORS.primary,
     ...options,
   });
@@ -345,9 +344,10 @@ function buildCommandEmbed(command, prefix = PREFIX_FALLBACK, options = {}) {
  * Error embed for invalid command input: problem + correct usage + example.
  */
 function buildUsageErrorEmbed(command, prefix = PREFIX_FALLBACK, problem, options = {}) {
+  const { title, example: exampleOption, ...rest } = options;
   const meta = resolveMeta(command) || {};
   const syntax = command ? `${prefix}${command.usage || command.name}` : undefined;
-  const exampleSource = options.example || meta.examples?.[0];
+  const exampleSource = exampleOption || meta.examples?.[0];
   const example = exampleSource
     ? exampleSource.startsWith(prefix)
       ? exampleSource
@@ -355,12 +355,12 @@ function buildUsageErrorEmbed(command, prefix = PREFIX_FALLBACK, problem, option
     : syntax;
 
   return buildErrorEmbed({
-    title: options.title || (command ? `Invalid ${prefix}${command.name} arguments` : 'Invalid usage'),
+    title: title || (command ? `Invalid ${prefix}${command.name} arguments` : 'Invalid usage'),
     description: truncate(problem || 'That input was not valid for this command.', LIMITS.description),
     usage: syntax,
     example,
     footerContext: FOOTER_CONTEXT.command,
-    ...options,
+    ...rest,
   });
 }
 

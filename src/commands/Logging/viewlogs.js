@@ -82,7 +82,7 @@ const command = {
             title: type ? `Moderation logs — ${type}` : 'Moderation logs',
             description: `Showing the ${shown.length} most recent entr${shown.length === 1 ? 'y' : 'ies'}.`,
             fields: shown.map((entry) => ({
-              name: `${entry.action} · ${entry.target_id?.startsWith?.('0') || /^\d+$/.test(entry.target_id ?? '') ? `<@${entry.target_id}>` : entry.target_id ?? 'Unknown target'}`.slice(0, LIMITS.fieldName),
+              name: truncate(`${entry.action} · ${describeTarget(entry.target_id)}`, LIMITS.fieldName),
               value: [
                 `**Moderator:** <@${entry.moderator_id}>`,
                 `**Reason:** ${sanitizeReason(entry.reason, 'None recorded')}`,

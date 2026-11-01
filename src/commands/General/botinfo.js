@@ -1,7 +1,7 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
+const { BRAND } = require('../../utils/embedUtils');
+const { infoEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'botinfo',
   description: 'Shows information about the bot.',
   category: 'General',
@@ -14,20 +14,25 @@ module.exports = {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`About ${config.botName}`)
-      .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-      .addFields(
-        { name: 'Servers', value: `${client.guilds.cache.size}`, inline: true },
-        { name: 'Users', value: `${client.users.cache.size}`, inline: true },
-        { name: 'Commands', value: `${client.commands.size}`, inline: true },
-        { name: 'Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
-        { name: 'Library', value: 'discord.js v14', inline: true },
-        { name: 'Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true }
-      )
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        infoEmbed({
+          title: `About ${BRAND}`,
+          description: 'A prefix-command moderation and community bot built on discord.js v14.',
+          thumbnail: client.user.displayAvatarURL({ size: 256 }),
+          fields: [
+            { name: 'Servers', value: String(client.guilds.cache.size), inline: true },
+            { name: 'Users', value: String(client.users.cache.size), inline: true },
+            { name: 'Commands', value: String(client.commands.size), inline: true },
+            { name: 'Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
+            { name: 'Library', value: 'discord.js v14', inline: true },
+            { name: 'Online since', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true },
+          ],
+          footerContext: 'Bot information',
+        }),
+      ],
+    });
   },
 };
+
+module.exports = command;

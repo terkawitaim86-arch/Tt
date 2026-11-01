@@ -1,22 +1,25 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
+const { infoEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'avatar',
-  description: 'Shows a member\'s avatar.',
+  description: "Shows a member's avatar.",
   category: 'General',
   usage: 'avatar [@user]',
   aliases: ['av', 'pfp'],
   async execute(message, args, client) {
     const member = message.mentions.members.first() || message.member;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`${member.user.tag}'s Avatar`)
-      .setImage(member.user.displayAvatarURL({ size: 512 }))
-      .setFooter({ text: `${config.botName}` })
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        infoEmbed({
+          title: `${member.user.username}'s avatar`,
+          description: `Requested by ${message.author} · [Open original](${member.user.displayAvatarURL({ size: 1024 })})`,
+          image: member.user.displayAvatarURL({ size: 512 }),
+          footerContext: 'Avatar',
+        }),
+      ],
+    });
   },
 };
+
+module.exports = command;

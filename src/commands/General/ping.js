@@ -1,31 +1,29 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
+const { infoEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'ping',
   description: "Check the bot's latency.",
   category: 'General',
   usage: 'ping',
   aliases: [],
-  execute(message, args, client) {
+  async execute(message, args, client) {
     const apiLatency = client.ws.ping;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('🏓 Pong!')
-      .addFields(
-        { name: 'API Latency', value: `${apiLatency}ms`, inline: true },
-        { name: 'Message Latency', value: 'Calculating...', inline: true }
-      )
-      .setTimestamp();
+    const build = (latency) =>
+      infoEmbed({
+        title: 'Pong',
+        description: 'Round-trip latency for the gateway and this server.',
+        fields: [
+          { name: 'API latency', value: `${apiLatency} ms`, inline: true },
+          { name: 'Message latency', value: latency, inline: true },
+        ],
+        footerContext: 'Latency',
+      });
 
-    message.reply({ embeds: [embed] }).then((reply) => {
-      const msgLatency = reply.createdTimestamp - message.createdTimestamp;
-      const updated = EmbedBuilder.from(embed).setFields(
-        { name: 'API Latency', value: `${apiLatency}ms`, inline: true },
-        { name: 'Message Latency', value: `${msgLatency}ms`, inline: true }
-      );
-      reply.edit({ embeds: [updated] });
-    });
+    const reply = await message.reply({ embeds: [build('Measuring…')] });
+    const msgLatency = reply.createdTimestamp - message.createdTimestamp;
+    return reply.edit({ embeds: [build(`${msgLatency} ms`)] });
   },
 };
+
+module.exports = command;

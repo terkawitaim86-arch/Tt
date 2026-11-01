@@ -1,8 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
 const { setAfk, removeAfk, getAfk } = require('../../utils/afkManager');
+const { successEmbed, infoEmbed, createBaseEmbed, COLORS } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'afk',
   description: 'Set an AFK status. Automatically removed when you send a message.',
   category: 'General',
@@ -16,21 +16,30 @@ module.exports = {
     const existing = await getAfk(guildId, userId);
     if (existing) {
       await removeAfk(guildId, userId);
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setDescription(`Welcome back <@${userId}>! Your AFK status has been removed.`)
-        .setTimestamp();
-      return message.reply({ embeds: [embed] });
+      return message.reply({
+        embeds: [
+          successEmbed({
+            title: 'Welcome back',
+            description: `Your AFK status has been removed, ${message.author}.`,
+          }),
+        ],
+      });
     }
 
     await setAfk(guildId, userId, reason);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('AFK Status Set')
-      .setDescription(`<@${userId}> is now AFK: **${reason}**`)
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        createBaseEmbed({
+          title: 'AFK status set',
+          description: `${message.author} is now AFK.`,
+          fields: [{ name: 'Status message', value: reason, inline: false }],
+          color: COLORS.info,
+          footerContext: 'AFK',
+        }),
+      ],
+    });
   },
 };
+
+module.exports = command;

@@ -1,7 +1,5 @@
-const config = require('../../config');
 const { getXpData, levelForXp, getRank } = require('../../utils/xpManager');
-const { getPrefix } = require('../../utils/prefixManager');
-const { infoEmbed, usageErrorEmbed, logCommandError, createBaseEmbed, COLORS } = require('../../utils/embedUtils');
+const { infoEmbed, logCommandError, createBaseEmbed, COLORS } = require('../../utils/embedUtils');
 
 const command = {
   name: 'rank',
@@ -16,7 +14,6 @@ const command = {
       const data = await getXpData(message.guild.id, member.id);
 
       if (!data) {
-        const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
         return message.reply({
           embeds: [
             infoEmbed({

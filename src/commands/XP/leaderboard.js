@@ -1,7 +1,5 @@
-const config = require('../../config');
 const { getLeaderboard } = require('../../utils/xpManager');
-const { getPrefix } = require('../../utils/prefixManager');
-const { infoEmbed, usageErrorEmbed, logCommandError, createBaseEmbed, sanitizeReason, COLORS, LIMITS } = require('../../utils/embedUtils');
+const { infoEmbed, logCommandError, createBaseEmbed, COLORS, LIMITS } = require('../../utils/embedUtils');
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -12,8 +10,6 @@ const command = {
   usage: 'leaderboard',
   aliases: ['top', 'lb'],
   async execute(message, args, client) {
-    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-
     try {
       const leaderboard = await getLeaderboard(message.guild.id, 10);
 

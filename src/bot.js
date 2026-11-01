@@ -53,13 +53,16 @@ client.on('clientReady', () => {
       for (const reminder of due) {
         const channel = client.channels.cache.get(reminder.channel_id);
         if (channel) {
-          const { EmbedBuilder } = require('discord.js');
-          const config = require('./config');
-          const embed = new EmbedBuilder()
-            .setColor(config.embedColor)
-            .setTitle('Reminder')
-            .setDescription(`<@${reminder.user_id}>, you asked me to remind you:\n\n**${reminder.message}**`)
-            .setTimestamp();
+          const { createBaseEmbed, COLORS, FOOTER_CONTEXT, truncate, LIMITS } = require('./utils/embedUtils');
+          const embed = createBaseEmbed({
+            title: 'Reminder',
+            description: truncate(
+              `<@${reminder.user_id}>, you asked me to remind you:\n\n**${reminder.message}**`,
+              LIMITS.description
+            ),
+            color: COLORS.primary,
+            footerContext: FOOTER_CONTEXT.info,
+          });
           channel.send({ content: `<@${reminder.user_id}>`, embeds: [embed] }).catch(() => {});
         }
         await markReminderComplete(reminder.id);

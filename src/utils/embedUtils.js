@@ -64,6 +64,18 @@ function usageEmbed({ command, syntax, example, description, footer = 'ZMB • U
   return embed;
 }
 
+/** Mentions are rendered but never ping anyone — safe for every command reply. */
+const SAFE_MENTIONS = Object.freeze({ parse: [], repliedUser: false });
+
+/**
+ * Build a message payload from one or more embeds with safe mention handling.
+ * @param {...any} embeds EmbedBuilder instances (or arrays of them)
+ */
+function replyOptions(...embeds) {
+  const list = embeds.flat().filter(Boolean);
+  return { embeds: list, allowedMentions: { ...SAFE_MENTIONS } };
+}
+
 module.exports = {
   createBaseEmbed,
   successEmbed,
@@ -71,4 +83,6 @@ module.exports = {
   warningEmbed,
   infoEmbed,
   usageEmbed,
+  replyOptions,
+  SAFE_MENTIONS,
 };

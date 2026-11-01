@@ -27,30 +27,43 @@ async function getXpData(guildId, userId) {
   return data;
 }
 
+/**
+ * Atomically add XP for a member.
+ *
+ * The addition happens inside the public.add_xp() database function
+ * (see supabase/migrations/*_atomic_xp_update.sql). Never read-then-write here:
+ * that pattern loses increments when two messages are handled concurrently.
+ */
 async function addXp(guildId, userId, amount) {
-  const existing = await getXpData(guildId, userId);
-  const currentXp = existing ? existing.xp : 0;
-  const currentLevel = existing ? existing.level : 0;
-  const newXp = currentXp + amount;
-  const { level, currentXp: levelXp, neededXp } = levelForXp(newXp);
+  const delta = Number.isFinite(amount) ? Math.trunc(amount) : 0;
 
-  const { error } = await supabase
-    .from('xp_data')
-    .upsert({
-      guild_id: guildId,
-      user_id: userId,
-      xp: newXp,
-      level,
-      last_xp_at: new Date().toISOString(),
-    }, { onConflict: 'guild_id,user_id' });
+  const { data, error } = await supabase.rpc('add_xp', {
+    p_guild_id: guildId,
+    p_user_id: userId,
+    p_amount: delta,
+  });
 
   if (error) {
     console.error('[XP] Failed to add XP:', error.message);
     return null;
   }
 
-  const leveledUp = level > currentLevel;
-  return { xp: newXp, level, leveledUp, currentXp: levelXp, neededXp };
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row.xp !== 'number') {
+    console.error('[XP] add_xp returned no row; check that the atomic XP migration has been applied.');
+    return null;
+  }
+
+  const previousLevel = levelForXp(Math.max(row.xp - delta, 0)).level;
+  const { currentXp, neededXp } = levelForXp(row.xp);
+
+  return {
+    xp: row.xp,
+    level: row.level,
+    leveledUp: row.level > previousLevel,
+    currentXp,
+    neededXp,
+  };
 }
 
 async function setXp(guildId, userId, amount) {

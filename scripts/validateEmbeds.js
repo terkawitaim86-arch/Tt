@@ -346,7 +346,24 @@ for (const file of eventFiles) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Report.
+// 6. Syntax check every source file (entry point, commands, events, utils).
+//    Modules under src/commands and src/events are already required above; this
+//    also covers the entry point and files that are only loaded at runtime.
+// ---------------------------------------------------------------------------
+const syntaxTargets = [path.join(ROOT, 'index.js'), ...walk(path.join(ROOT, 'src'))];
+for (const target of syntaxTargets) {
+  const label = path.relative(ROOT, target);
+  try {
+    execFileSync(process.execPath, ['--check', target], { stdio: 'pipe' });
+    checks += 1;
+  } catch (error) {
+    const detail = (error.stderr || '').toString().split('\n').slice(0, 3).join(' ').trim();
+    fail(`${label}: syntax check failed — ${detail || error.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. Report.
 // ---------------------------------------------------------------------------
 if (failures.length > 0) {
   console.error(`Embed validation FAILED (${failures.length} of ${checks} assertions)\n`);

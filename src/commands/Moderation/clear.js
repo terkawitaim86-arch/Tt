@@ -7,7 +7,7 @@ module.exports = {
   description: 'Delete a number of recent messages from the channel.',
   category: 'Moderation',
   usage: 'clear <amount> [@member]',
-  aliases: ['purge'],
+  aliases: ['purge', 'c'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       return message.reply('You need the **Manage Messages** permission to use this command.');

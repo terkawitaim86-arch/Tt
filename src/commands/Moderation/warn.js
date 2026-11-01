@@ -7,7 +7,7 @@ module.exports = {
   description: 'Warn a member. Warnings are stored and can be viewed with ,warnings.',
   category: 'Moderation',
   usage: 'warn <@member> [reason]',
-  aliases: [],
+  aliases: ['w'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
       return message.reply('You need the **Moderate Members** permission to use this command.');

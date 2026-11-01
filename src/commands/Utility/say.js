@@ -8,12 +8,15 @@ module.exports = {
   usage: 'say <message>',
   aliases: ['echo'],
   async execute(message, args, client) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return message.reply('You need the **Manage Messages** permission to use this command.');
+    }
     const text = args.join(' ');
     if (!text) {
       return message.reply('Usage: `say <message>`');
     }
 
     if (message.deletable) message.delete().catch(() => {});
-    return message.channel.send(text);
+    return message.channel.send({ content: text, allowedMentions: { parse: [] } });
   },
 };

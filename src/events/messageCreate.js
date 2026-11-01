@@ -7,6 +7,12 @@ const { checkCooldown } = require('../utils/cooldowns');
 const { getCustomCommand } = require('../utils/customCommandManager');
 const { EmbedBuilder } = require('discord.js');
 
+const xpCooldowns = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [k, t] of xpCooldowns) if (t < cutoff) xpCooldowns.delete(k);
+}, 5 * 60 * 1000).unref();
+
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
@@ -38,14 +44,15 @@ module.exports = {
         const ignoredChannels = settings.xp_ignored_channels || [];
         if (!ignoredChannels.includes(message.channel.id)) {
           const now = Date.now();
-          const lastXp = message.author._lastXpAt || 0;
+          const xpKey = `${message.guild.id}:${message.author.id}`;
+          const lastXp = xpCooldowns.get(xpKey) || 0;
           if (now - lastXp >= settings.xp_cooldown_seconds * 1000) {
             const min = settings.xp_min;
             const max = settings.xp_max;
             const xpAmount = Math.floor(Math.random() * (max - min + 1)) + min;
 
             const result = await addXp(message.guild.id, message.author.id, xpAmount);
-            message.author._lastXpAt = now;
+            xpCooldowns.set(xpKey, now);
 
             if (result && result.leveledUp) {
               const embed = new EmbedBuilder()

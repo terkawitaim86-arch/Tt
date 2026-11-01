@@ -19,19 +19,21 @@ module.exports = {
     const { level, currentXp, neededXp } = levelForXp(data.xp);
     const { rank, total } = await getRank(message.guild.id, member.id);
     const progress = Math.round((currentXp / neededXp) * 100);
+    const filled = Math.max(0, Math.min(10, Math.round(progress / 10)));
+    const bar = '▰'.repeat(filled) + '▱'.repeat(10 - filled);
 
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
-      .setTitle(`${member.user.tag}'s Rank`)
+      .setTitle(`${member.displayName}'s Rank`)
       .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
       .addFields(
         { name: 'Level', value: `${level}`, inline: true },
         { name: 'Rank', value: rank ? `#${rank} / ${total}` : 'Unranked', inline: true },
-        { name: 'Total XP', value: `${data.xp}`, inline: true },
-        { name: 'Progress', value: `${currentXp} / ${neededXp} XP (${progress}%)`, inline: false }
+        { name: 'Total XP', value: `${Number(data.xp).toLocaleString('en-US')}`, inline: true },
+        { name: 'Progress', value: `${bar} ${progress}%\n${currentXp} / ${neededXp} XP`, inline: false }
       )
       .setTimestamp();
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
   },
 };

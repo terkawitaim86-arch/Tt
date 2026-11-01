@@ -9,7 +9,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildBans,
+    GatewayIntentBits.GuildModeration,
   ],
   partials: [Partials.Channel, Partials.Reaction, Partials.Message, Partials.GuildMember],
 });

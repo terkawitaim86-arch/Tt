@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
+const { checkHierarchy } = require('../../utils/modChecks');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
 
@@ -8,7 +9,7 @@ module.exports = {
   description: 'Ban a member from the server.',
   category: 'Moderation',
   usage: 'ban <@member> [reason]',
-  aliases: [],
+  aliases: ['b'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
       return message.reply('You need the **Ban Members** permission to use this command.');
@@ -20,9 +21,8 @@ module.exports = {
       return message.reply(`Usage: \`${prefix}ban <@member> [reason]\``);
     }
 
-    if (member.id === message.author.id) {
-      return message.reply('You cannot ban yourself.');
-    }
+    const hierarchyError = checkHierarchy(message, member, 'ban');
+    if (hierarchyError) return message.reply(hierarchyError);
 
     if (!member.bannable) {
       return message.reply('I cannot ban that member — they may have a higher role than me.');

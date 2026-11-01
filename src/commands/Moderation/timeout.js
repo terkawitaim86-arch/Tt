@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
+const { checkHierarchy } = require('../../utils/modChecks');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
 
@@ -24,7 +25,7 @@ module.exports = {
   description: 'Timeout a member for a duration (e.g. 10m, 1h, 2d).',
   category: 'Moderation',
   usage: 'timeout <@member> <duration> [reason]',
-  aliases: ['mute'],
+  aliases: ['mute', 'to'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
       return message.reply('You need the **Moderate Members** (Timeout) permission to use this command.');
@@ -36,9 +37,8 @@ module.exports = {
       return message.reply(`Usage: \`${prefix}timeout <@member> <duration> [reason]\`\nDurations: s, m, h, d, w (e.g. \`10m\`, \`1h\`)`);
     }
 
-    if (member.id === message.author.id) {
-      return message.reply('You cannot timeout yourself.');
-    }
+    const hierarchyError = checkHierarchy(message, member, 'timeout');
+    if (hierarchyError) return message.reply(hierarchyError);
 
     if (!member.moderatable) {
       return message.reply('I cannot timeout that member — they may have a higher role than me.');

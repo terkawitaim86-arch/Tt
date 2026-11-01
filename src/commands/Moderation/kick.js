@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
+const { checkHierarchy } = require('../../utils/modChecks');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
 
@@ -8,7 +9,7 @@ module.exports = {
   description: 'Kick a member from the server.',
   category: 'Moderation',
   usage: 'kick <@member> [reason]',
-  aliases: [],
+  aliases: ['k'],
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
       return message.reply('You need the **Kick Members** permission to use this command.');
@@ -20,9 +21,8 @@ module.exports = {
       return message.reply(`Usage: \`${prefix}kick <@member> [reason]\``);
     }
 
-    if (member.id === message.author.id) {
-      return message.reply('You cannot kick yourself.');
-    }
+    const hierarchyError = checkHierarchy(message, member, 'kick');
+    if (hierarchyError) return message.reply(hierarchyError);
 
     if (!member.kickable) {
       return message.reply('I cannot kick that member — they may have a higher role than me.');

@@ -46,30 +46,30 @@ client.on('shardResume', (shardId, replayedEvents) => {
 });
 
 client.on('clientReady', () => {
-  const { getDueReminders, markReminderComplete } = require('./utils/reminderManager');
+  const { processDueReminders } = require('./utils/reminderRunner');
+  const REMINDER_INTERVAL_MS = 30000;
+
+  let running = false;
+
   const interval = setInterval(async () => {
-    try {
-      const due = await getDueReminders();
-      for (const reminder of due) {
-        const channel = client.channels.cache.get(reminder.channel_id);
-        if (channel) {
-          const { EmbedBuilder } = require('discord.js');
-          const config = require('./config');
-          const embed = new EmbedBuilder()
-            .setColor(config.embedColor)
-            .setTitle('Reminder')
-            .setDescription(`<@${reminder.user_id}>, you asked me to remind you:\n\n**${reminder.message}**`)
-            .setTimestamp();
-          channel.send({ content: `<@${reminder.user_id}>`, embeds: [embed] }).catch(() => {});
-        }
-        await markReminderComplete(reminder.id);
-      }
-    } catch (e) {
-      // Silently ignore — don't crash the bot
+    // Overlapping ticks could deliver the same reminder twice; skip instead of queueing.
+    if (running) {
+      console.warn('[Reminders] Previous tick is still running — skipping this one.');
+      return;
     }
-  }, 30000);
+
+    running = true;
+    try {
+      await processDueReminders(client);
+    } catch (error) {
+      console.error('[Reminders] Tick failed unexpectedly:', error && (error.message || error));
+    } finally {
+      running = false;
+    }
+  }, REMINDER_INTERVAL_MS);
 
   client._reminderInterval = interval;
+  console.log(`[Reminders] Reminder loop started (every ${REMINDER_INTERVAL_MS / 1000}s).`);
 });
 
 async function startBot() {

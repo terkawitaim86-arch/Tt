@@ -70,7 +70,7 @@ async function getDueReminders(limit = 10) {
 async function claimReminder(id) {
   const { data, error } = await supabase
     .from('reminders')
-    .update({ completed: true, completed_at: new Date().toISOString() })
+    .update({ completed: true })
     .eq('id', id)
     .eq('completed', false)
     .select('id');
@@ -87,7 +87,7 @@ async function claimReminder(id) {
 async function releaseReminder(id) {
   const { error } = await supabase
     .from('reminders')
-    .update({ completed: false, completed_at: null })
+    .update({ completed: false })
     .eq('id', id);
 
   if (error) {

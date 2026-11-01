@@ -1,21 +1,31 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'unban',
   description: 'Unban a user by their ID.',
   category: 'Moderation',
   usage: 'unban <user_id> [reason]',
   aliases: [],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      return message.reply('You need the **Ban Members** permission to use this command.');
+      return fail('You need the **Ban Members** permission to use this command.', 'Missing permission');
     }
 
     const userId = args[0];
     if (!userId || !/^\d+$/.test(userId)) {
-      return message.reply('Usage: `unban <user_id> [reason]`\nYou can find a user\'s ID by enabling Developer Mode and right-clicking their profile.');
+      return fail("Provide the user ID of the banned member (right-click → Copy User ID).");
     }
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
@@ -30,23 +40,24 @@ module.exports = {
         reason,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🔓 User Unbanned')
-        .addFields(
-          { name: 'User ID', value: userId, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+      const embed = moderationEmbed({
+        title: 'User unbanned',
+        description: `A user was unbanned from **${message.guild.name}**.`,
+        moderator: message.author,
+        target: null,
+        reason,
+        extraFields: [{ name: 'User ID', value: `\`${userId}\``, inline: true }],
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[unban] Failed:', error);
       if (error.code === 10026) {
-        return message.reply('That user is not banned.');
+        return fail('That user is not banned.', 'Not banned');
       }
-      return message.reply('Failed to unban that user. Please try again.');
+      logCommandError('unban', error);
+      return fail('I could not unban that user. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

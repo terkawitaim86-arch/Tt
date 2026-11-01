@@ -1,25 +1,35 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'untimeout',
   description: 'Remove a timeout from a member.',
   category: 'Moderation',
   usage: 'untimeout <@member> [reason]',
   aliases: ['unmute'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return message.reply('You need the **Moderate Members** (Timeout) permission to use this command.');
+      return fail('You need the **Moderate Members** permission to use this command.', 'Missing permission');
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply('Usage: `untimeout <@member> [reason]`');
+      return fail('Mention the member whose timeout you want to remove.');
     }
 
     if (!member.isCommunicationDisabled()) {
-      return message.reply('That member is not currently timed out.');
+      return fail('That member is not currently timed out.', 'No active timeout');
     }
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
@@ -34,20 +44,20 @@ module.exports = {
         reason,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🔊 Timeout Removed')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+      const embed = moderationEmbed({
+        title: 'Timeout removed',
+        description: `${member} can talk again in **${message.guild.name}**.`,
+        moderator: message.author,
+        target: member,
+        reason,
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[untimeout] Failed:', error);
-      return message.reply('Failed to remove the timeout. Please try again.');
+      logCommandError('untimeout', error);
+      return fail('I could not remove the timeout. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

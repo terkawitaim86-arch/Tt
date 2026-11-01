@@ -100,12 +100,27 @@ function normalizeFields(fields) {
     }));
 }
 
+/**
+ * Discord's embed builders throw on any icon/image value that is not an
+ * absolute http(s) URL, which would abort the command that produced the embed.
+ * Validate first and simply omit the decoration when it is unusable.
+ */
+function isHttpUrl(value) {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function normalizeAuthor(author) {
   if (!author) return null;
   if (typeof author === 'string') return { name: truncate(author, LIMITS.authorName) };
   const normalized = { name: truncate(String(author.name || BRAND), LIMITS.authorName) };
-  if (author.iconURL) normalized.iconURL = author.iconURL;
-  if (author.url) normalized.url = author.url;
+  if (isHttpUrl(author.iconURL)) normalized.iconURL = author.iconURL;
+  if (isHttpUrl(author.url)) normalized.url = author.url;
   return normalized;
 }
 

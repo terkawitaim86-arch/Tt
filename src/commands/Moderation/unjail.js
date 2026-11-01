@@ -4,7 +4,7 @@ const { guardModeration, describeDiscordError } = require('../../utils/permissio
 const { truncate } = require('../../utils/format');
 const { logAction } = require('../../utils/modLog');
 const { getSettings } = require('../../utils/guildSettings');
-const { releaseJailRecord } = require('../../utils/jailManager');
+const { getJailRecord, releaseJailRecord } = require('../../utils/jailManager');
 const { getPrefix } = require('../../utils/prefixManager');
 
 module.exports = {
@@ -35,13 +35,9 @@ module.exports = {
     });
     if (denied) return message.reply(replyOptions(denied));
 
-    const settings = await getSettings(message.guild.id);
-    const reason = truncate(args.slice(1).join(' ') || 'No reason provided', 900);
-    const botHighest = message.guild.members.me.roles.highest.position;
-
     let record;
     try {
-      record = await releaseJailRecord(message.guild.id, member.id);
+      record = await getJailRecord(message.guild.id, member.id);
     } catch (error) {
       console.error(`[unjail] Failed to read jail record for ${member.id}:`, error.message);
       return message.reply(replyOptions(errorEmbed({
@@ -59,48 +55,59 @@ module.exports = {
       })));
     }
 
+    const settings = await getSettings(message.guild.id);
     const jailRole = settings.jail_role_id ? message.guild.roles.cache.get(settings.jail_role_id) : null;
+    const botHighest = message.guild.members.me.roles.highest.position;
+    const reason = truncate(args.slice(1).join(' ') || 'No reason provided', 900);
+
+    const rolesToAdd = (record.previous_roles || []).filter((roleId) => {
+      const role = message.guild.roles.cache.get(roleId);
+      return Boolean(role) && !role.managed && role.position < botHighest;
+    });
 
     try {
       if (jailRole && member.roles.cache.has(jailRole.id)) {
         await member.roles.remove(jailRole, `Unjailed by ${message.author.tag}: ${reason}`);
       }
-
-      const rolesToAdd = (record.previous_roles || []).filter((roleId) => {
-        const role = message.guild.roles.cache.get(roleId);
-        return Boolean(role) && role.position < botHighest;
-      });
-
       if (rolesToAdd.length > 0) {
         await member.roles.add(rolesToAdd, `Unjailed by ${message.author.tag}: ${reason}`);
       }
-
-      await logAction({
-        guildId: message.guild.id,
-        action: 'unjail',
-        targetId: member.id,
-        moderatorId: message.author.id,
-        reason,
-      });
-
-      return message.reply(replyOptions(successEmbed({
-        title: 'Member released',
-        description: `<@${member.id}> has been released from jail.`,
-        footer: 'ZMB • unjail',
-        fields: [
-          { name: 'Member', value: `\`${member.id}\``, inline: true },
-          { name: 'Roles restored', value: `${rolesToAdd.length}`, inline: true },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
-          { name: 'Reason', value: reason, inline: false },
-        ],
-      })));
     } catch (error) {
       console.error(`[unjail] Failed to restore ${member.id}:`, error.message);
       return message.reply(replyOptions(errorEmbed({
         title: 'Unjail failed',
-        description: describeDiscordError(error, 'I could not restore that member\'s roles. Re-add them manually if needed.'),
+        description: describeDiscordError(error, 'I could not restore that member\'s roles. The jail record was left active so you can retry.'),
         footer: 'ZMB • unjail',
       })));
     }
+
+    const released = await releaseJailRecord(message.guild.id, member.id);
+    if (!released) {
+      return message.reply(replyOptions(errorEmbed({
+        title: 'Roles restored, record not closed',
+        description: `<@${member.id}> got their roles back, but the jail record could not be marked as released. Try \`${prefix}unjail\` again.`,
+        footer: 'ZMB • unjail',
+      })));
+    }
+
+    await logAction({
+      guildId: message.guild.id,
+      action: 'unjail',
+      targetId: member.id,
+      moderatorId: message.author.id,
+      reason,
+    });
+
+    return message.reply(replyOptions(successEmbed({
+      title: 'Member released',
+      description: `<@${member.id}> has been released from jail.`,
+      footer: 'ZMB • unjail',
+      fields: [
+        { name: 'Member', value: `\`${member.id}\``, inline: true },
+        { name: 'Roles restored', value: `${rolesToAdd.length}`, inline: true },
+        { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
+        { name: 'Reason', value: reason, inline: false },
+      ],
+    })));
   },
 };

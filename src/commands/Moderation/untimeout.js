@@ -1,6 +1,9 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
+const { PermissionFlagsBits } = require('discord.js');
+const { successEmbed, errorEmbed, usageEmbed, replyOptions } = require('../../utils/embedUtils');
+const { guardModeration, describeDiscordError } = require('../../utils/permissions');
+const { truncate } = require('../../utils/format');
 const { logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
 
 module.exports = {
   name: 'untimeout',
@@ -8,46 +11,66 @@ module.exports = {
   category: 'Moderation',
   usage: 'untimeout <@member> [reason]',
   aliases: ['unmute'],
-  async execute(message, args, client) {
-    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return message.reply('You need the **Moderate Members** (Timeout) permission to use this command.');
-    }
-
+  async execute(message, args) {
+    const prefix = await getPrefix(message.guild.id);
     const member = message.mentions.members.first();
+
     if (!member) {
-      return message.reply('Usage: `untimeout <@member> [reason]`');
+      return message.reply(replyOptions(usageEmbed({
+        command: 'untimeout',
+        syntax: `${prefix}untimeout <@member> [reason]`,
+        example: `${prefix}untimeout @Member Appeal accepted`,
+      })));
     }
 
-    if (!member.isCommunicationDisabled()) {
-      return message.reply('That member is not currently timed out.');
+    const denied = guardModeration(message, {
+      permission: PermissionFlagsBits.ModerateMembers,
+      permissionLabel: 'Moderate Members',
+      botPermissions: { 'Moderate Members': PermissionFlagsBits.ModerateMembers },
+      target: member,
+      actionName: 'untimeout',
+      command: 'untimeout',
+    });
+    if (denied) return message.reply(replyOptions(denied));
+
+    if (!member.isCommunicationDisabled || !member.isCommunicationDisabled()) {
+      return message.reply(replyOptions(errorEmbed({
+        title: 'Not timed out',
+        description: `<@${member.id}> is not currently timed out.`,
+        footer: 'ZMB • untimeout',
+      })));
     }
 
-    const reason = args.slice(1).join(' ') || 'No reason provided';
+    const reason = truncate(args.slice(1).join(' ') || 'No reason provided', 900);
 
     try {
       await member.timeout(null, `${message.author.tag}: ${reason}`);
-      await logAction({
-        guildId: message.guild.id,
-        action: 'untimeout',
-        targetId: member.id,
-        moderatorId: message.author.id,
-        reason,
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🔊 Timeout Removed')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[untimeout] Failed:', error);
-      return message.reply('Failed to remove the timeout. Please try again.');
+      console.error(`[untimeout] Failed for ${member.id}:`, error.message);
+      return message.reply(replyOptions(errorEmbed({
+        title: 'Untimeout failed',
+        description: describeDiscordError(error, 'I could not remove that timeout.'),
+        footer: 'ZMB • untimeout',
+      })));
     }
+
+    await logAction({
+      guildId: message.guild.id,
+      action: 'untimeout',
+      targetId: member.id,
+      moderatorId: message.author.id,
+      reason,
+    });
+
+    return message.reply(replyOptions(successEmbed({
+      title: 'Timeout removed',
+      description: `<@${member.id}> can talk again.`,
+      footer: 'ZMB • untimeout',
+      fields: [
+        { name: 'Member', value: `\`${member.user.tag}\``, inline: true },
+        { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
+        { name: 'Reason', value: reason, inline: false },
+      ],
+    })));
   },
 };

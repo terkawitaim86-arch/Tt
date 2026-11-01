@@ -1,42 +1,49 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
+const { getPrefix } = require('../../utils/prefixManager');
+const { infoEmbed, usageErrorEmbed, inlineCode, logCommandError } = require('../../utils/embedUtils');
 
 const MATH_REGEX = /^[0-9+\-*/().%\s]+$/;
 
-module.exports = {
+const command = {
   name: 'calculate',
   description: 'Evaluate a math expression.',
   category: 'Utility',
   usage: 'calculate <expression>',
   aliases: ['calc', 'math'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     const expr = args.join(' ');
     if (!expr) {
-      return message.reply('Usage: `calculate <expression>`\nExample: `calculate 2 + 3 * 4`');
+      return fail('Provide a math expression to evaluate.', 'No expression');
     }
 
     if (!MATH_REGEX.test(expr)) {
-      return message.reply('Invalid expression. Only numbers and `+ - * / ( ) %` are allowed.');
+      return fail('Only numbers and `+ - * / ( ) %` are allowed in an expression.', 'Invalid expression');
     }
 
     try {
       const result = Function(`"use strict"; return (${expr})`)();
-      if (typeof result !== 'number' || !isFinite(result)) {
-        return message.reply('That expression doesn\'t produce a valid number.');
+      if (typeof result !== 'number' || !Number.isFinite(result)) {
+        return fail('That expression does not produce a valid number.', 'Invalid result');
       }
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('Calculator')
-        .addFields(
-          { name: 'Expression', value: `\`${expr}\``, inline: false },
-          { name: 'Result', value: `**${result}**`, inline: false }
-        )
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
+      return message.reply({
+        embeds: [
+          infoEmbed({
+            title: 'Calculator',
+            description: `${inlineCode(expr)} = **${result}**`,
+            footerContext: 'Calculator',
+          }),
+        ],
+      });
     } catch (error) {
-      return message.reply('Invalid math expression. Please check your syntax.');
+      logCommandError('calculate', error);
+      return fail('That expression could not be evaluated. Check the syntax.', 'Invalid expression');
     }
   },
 };
+
+module.exports = command;

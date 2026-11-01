@@ -1,7 +1,6 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
+const { infoEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'membercount',
   description: 'Show the current member count of the server.',
   category: 'Utility',
@@ -11,21 +10,25 @@ module.exports = {
     const guild = message.guild;
     await guild.members.fetch();
 
-    const total = guild.memberCount;
     const humans = guild.members.cache.filter((m) => !m.user.bot).size;
     const bots = guild.members.cache.filter((m) => m.user.bot).size;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`Member Count — ${guild.name}`)
-      .setThumbnail(guild.iconURL({ size: 128 }))
-      .addFields(
-        { name: 'Total', value: `${total}`, inline: true },
-        { name: 'Humans', value: `${humans}`, inline: true },
-        { name: 'Bots', value: `${bots}`, inline: true }
-      )
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        infoEmbed({
+          title: `Member count — ${guild.name}`,
+          description: `**${guild.memberCount}** members in this server.`,
+          thumbnail: guild.iconURL({ size: 128 }),
+          fields: [
+            { name: 'Total', value: String(guild.memberCount), inline: true },
+            { name: 'Humans', value: String(humans), inline: true },
+            { name: 'Bots', value: String(bots), inline: true },
+          ],
+          footerContext: 'Member count',
+        }),
+      ],
+    });
   },
 };
+
+module.exports = command;

@@ -8,11 +8,21 @@ const {
   logCommandError,
   createBaseEmbed,
   sanitizeReason,
+  truncate,
+  inlineCode,
   COLORS,
   LIMITS,
 } = require('../../utils/embedUtils');
 
 const MAX_SHOWN = Math.min(10, LIMITS.fields);
+
+/** Render a stored target id as a mention when it looks like a snowflake. */
+function describeTarget(targetId) {
+  const value = String(targetId ?? '').trim();
+  if (/^\d{16,20}$/.test(value)) return `<@${value}>`;
+  if (!value) return 'Unknown target';
+  return inlineCode(value);
+}
 
 const command = {
   name: 'viewlogs',

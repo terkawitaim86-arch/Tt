@@ -308,7 +308,7 @@ const badUrls = checkEmbedLimits(
     image: 'data:image/png;base64,AAAA',
   })
 );
-assert(badUrls.author?.iconURL === undefined, 'createBaseEmbed: invalid author iconURL must be omitted');
+assert(badUrls.author?.icon_url === undefined, 'createBaseEmbed: invalid author iconURL must be omitted');
 assert(badUrls.author?.url === undefined, 'createBaseEmbed: invalid author url must be omitted');
 assert(badUrls.thumbnail === undefined, 'createBaseEmbed: invalid thumbnail must be omitted');
 assert(badUrls.image === undefined, 'createBaseEmbed: invalid image must be omitted');
@@ -323,7 +323,7 @@ const goodUrls = checkEmbedLimits(
   })
 );
 assert(
-  goodUrls.author?.iconURL === 'https://cdn.discordapp.com/embed/avatars/0.png',
+  goodUrls.author?.icon_url === 'https://cdn.discordapp.com/embed/avatars/0.png',
   'createBaseEmbed: valid author iconURL must be kept'
 );
 assert(

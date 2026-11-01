@@ -1,8 +1,13 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { checkHierarchy } = require('../../utils/modChecks');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
 const TIME_UNITS = {
   s: 1,
@@ -20,43 +25,53 @@ function parseDuration(input) {
   return { seconds: value * TIME_UNITS[unit], display: `${value}${unit}` };
 }
 
-module.exports = {
+const command = {
   name: 'timeout',
   description: 'Timeout a member for a duration (e.g. 10m, 1h, 2d).',
   category: 'Moderation',
   usage: 'timeout <@member> <duration> [reason]',
   aliases: ['mute', 'to'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return message.reply('You need the **Moderate Members** (Timeout) permission to use this command.');
+      return fail(
+        'You need the **Moderate Members** (Timeout) permission to use this command.',
+        'Missing permission'
+      );
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-      return message.reply(`Usage: \`${prefix}timeout <@member> <duration> [reason]\`\nDurations: s, m, h, d, w (e.g. \`10m\`, \`1h\`)`);
+      return fail('Mention the member you want to timeout.');
     }
 
     const hierarchyError = checkHierarchy(message, member, 'timeout');
-    if (hierarchyError) return message.reply(hierarchyError);
+    if (hierarchyError) {
+      return fail(hierarchyError, 'Member cannot be timed out');
+    }
 
     if (!member.moderatable) {
-      return message.reply('I cannot timeout that member — they may have a higher role than me.');
+      return fail(
+        'I cannot timeout that member — they may have a higher role than me.',
+        'Member cannot be timed out'
+      );
     }
 
     const durationInput = args[1];
     if (!durationInput) {
-      const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-      return message.reply(`You must specify a duration. Usage: \`${prefix}timeout <@member> <duration> [reason]\`\nDurations: s, m, h, d, w (e.g. \`10m\`, \`1h\`)`);
+      return fail('You must specify a duration, such as `10m`, `1h` or `2d`.');
     }
 
     const parsed = parseDuration(durationInput);
     if (!parsed) {
-      return message.reply(`Invalid duration \`${durationInput}\`. Use formats like \`10m\`, \`1h\`, \`2d\`, \`1w\`.`);
+      return fail(`\`${durationInput}\` is not a valid duration. Use s, m, h, d or w — for example \`10m\`.`);
     }
 
     if (parsed.seconds > 2419200) {
-      return message.reply('The maximum timeout duration is **28 days**.');
+      return fail('The maximum timeout duration is **28 days**.');
     }
 
     const reason = args.slice(2).join(' ') || 'No reason provided';
@@ -73,22 +88,24 @@ module.exports = {
         duration: parsed.display,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🔇 Member Timed Out')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
+      const embed = moderationEmbed({
+        title: 'Member timed out',
+        description: `A member was timed out in **${message.guild.name}**.`,
+        moderator: message.author,
+        target: member,
+        reason,
+        extraFields: [
           { name: 'Duration', value: parsed.display, inline: true },
-          { name: 'Until', value: `<t:${Math.floor(until.getTime() / 1000)}:R>`, inline: true },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+          { name: 'Expires', value: `<t:${Math.floor(until.getTime() / 1000)}:R>`, inline: true },
+        ],
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[timeout] Failed:', error);
-      return message.reply('Failed to timeout that member. Please try again.');
+      logCommandError('timeout', error);
+      return fail('I could not timeout that member. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

@@ -9,7 +9,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const SKIP_DIRS = new Set(['node_modules', '.git', 'supabase', 'test']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'supabase']);
+const CHECK_DIRS = ['src', 'scripts', 'test'];
 
 function collect(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -25,7 +26,10 @@ function collect(dir, out = []) {
   return out;
 }
 
-const files = [...collect(path.join(ROOT, 'src')), ...collect(path.join(ROOT, 'scripts'))];
+const files = CHECK_DIRS.flatMap((dir) => {
+  const full = path.join(ROOT, dir);
+  return fs.existsSync(full) ? collect(full) : [];
+});
 const rootIndex = path.join(ROOT, 'index.js');
 if (fs.existsSync(rootIndex)) files.push(rootIndex);
 

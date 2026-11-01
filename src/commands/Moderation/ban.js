@@ -7,7 +7,6 @@ const {
   moderationEmbed,
   usageErrorEmbed,
   logCommandError,
-  inlineCode,
 } = require('../../utils/embedUtils');
 
 const command = {

@@ -68,5 +68,3 @@ module.exports = {
     }
   },
 };
-EOF'
-node --check src/commands/Utility/say.js && echo SAY_OK

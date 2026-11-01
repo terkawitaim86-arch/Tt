@@ -373,5 +373,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Embed validation OK — ${commands.length} commands, ${eventFiles.length} events, ${checks} assertions passed.`
+  `Embed validation OK — ${commands.length} commands, ${eventFiles.length} events, ${syntaxTargets.length} source files syntax-checked, ${checks} assertions passed.`
 );

@@ -1,42 +1,48 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { getSettings } = require('../../utils/guildSettings');
+const { getPrefix } = require('../../utils/prefixManager');
+const { infoEmbed, usageErrorEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'logsettings',
   description: 'View the current logging configuration.',
   category: 'Logging',
   usage: 'logsettings',
   aliases: ['logconfig'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      return message.reply('You need the **Manage Server** permission to use this command.');
+      return fail('You need the **Manage Server** permission to use this command.', 'Missing permission');
     }
 
     const settings = await getSettings(message.guild.id);
 
     const channels = [
-      { name: 'Chat Logs', value: settings.log_chat_channel_id, desc: 'Deleted & edited messages' },
-      { name: 'Server Logs', value: settings.log_server_channel_id, desc: 'Joins, leaves, bans, nicknames' },
-      { name: 'Role Logs', value: settings.log_role_channel_id, desc: 'Role created/deleted/updated' },
-      { name: 'Mod Logs', value: settings.log_mod_channel_id, desc: 'Mod actions (ban, kick, warn, etc.)' },
+      { key: 'log_chat_channel_id', label: 'Chat logs', description: 'Deleted and edited messages' },
+      { key: 'log_server_channel_id', label: 'Server logs', description: 'Joins, leaves, bans, nicknames' },
+      { key: 'log_role_channel_id', label: 'Role logs', description: 'Roles created, deleted or updated' },
+      { key: 'log_mod_channel_id', label: 'Mod logs', description: 'Ban, kick, warn and other actions' },
     ];
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('Logging Configuration')
-      .setTimestamp();
-
-    for (const ch of channels) {
-      embed.addFields({
-        name: `${ch.name} — ${ch.desc}`,
-        value: ch.value ? `<#${ch.value}>` : 'Not set',
-        inline: false,
-      });
-    }
-
-    embed.setFooter({ text: `Use ,setlogchannel <type> <#channel> to configure` });
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        infoEmbed({
+          title: 'Logging configuration',
+          description: `Change a channel with \`${prefix}setlogchannel <type> <#channel>\`.`,
+          fields: channels.map((channel) => ({
+            name: channel.label,
+            value: settings[channel.key] ? `<#${settings[channel.key]}>\n${channel.description}` : `Not set\n${channel.description}`,
+            inline: false,
+          })),
+          footerContext: 'Logging',
+        }),
+      ],
+    });
   },
 };
+
+module.exports = command;

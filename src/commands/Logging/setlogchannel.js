@@ -1,6 +1,8 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
-const { getSettings, updateSettings } = require('../../utils/guildSettings');
+const { updateSettings } = require('../../utils/guildSettings');
+const { getPrefix } = require('../../utils/prefixManager');
+const { successEmbed, usageErrorEmbed, logCommandError, createBaseEmbed, COLORS } = require('../../utils/embedUtils');
 
 const TYPE_MAP = {
   chat: 'log_chat_channel_id',
@@ -9,44 +11,71 @@ const TYPE_MAP = {
   mod: 'log_mod_channel_id',
 };
 
-module.exports = {
+const command = {
   name: 'setlogchannel',
   description: 'Set a log channel for a specific log type (chat, server, role, mod).',
   category: 'Logging',
   usage: 'setlogchannel <type> <#channel>',
   aliases: ['logchannel'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      return message.reply('You need the **Manage Server** permission to use this command.');
+      return fail('You need the **Manage Server** permission to use this command.', 'Missing permission');
     }
 
     const type = args[0]?.toLowerCase();
     const channel = message.mentions.channels.first();
 
     if (!type || !TYPE_MAP[type]) {
-      return message.reply(`Usage: \`setlogchannel <type> <#channel>\`\nTypes: **${Object.keys(TYPE_MAP).join(', ')}**`);
+      return fail(`Choose a log type: **${Object.keys(TYPE_MAP).join(', ')}**.`, 'Unknown log type');
     }
 
     if (!channel) {
-      return message.reply('You must mention a channel. Usage: `setlogchannel <type> <#channel>`');
+      return fail('Mention the channel that should receive these logs.', 'No channel mentioned');
     }
 
-    const column = TYPE_MAP[type];
-    const success = await updateSettings(message.guild.id, { [column]: channel.id });
+    try {
+      const success = await updateSettings(message.guild.id, { [TYPE_MAP[type]]: channel.id });
 
-    if (!success) {
-      return message.reply('Failed to save the log channel. Please try again.');
+      if (!success) {
+        return message.reply({
+          embeds: [
+            createBaseEmbed({
+              title: 'Log channel not saved',
+              description: 'The setting could not be saved. Please try again.',
+              color: COLORS.error,
+              footerContext: 'Logging',
+            }),
+          ],
+        });
+      }
+
+      return message.reply({
+        embeds: [
+          successEmbed({
+            title: 'Log channel set',
+            description: `**${type}** logs will now be posted in <#${channel.id}>.`,
+            footerContext: 'Logging',
+          }),
+        ],
+      });
+    } catch (error) {
+      logCommandError('setlogchannel', error);
+      return message.reply({
+        embeds: [
+          createBaseEmbed({
+            title: 'Log channel not saved',
+            description: 'The setting could not be saved. Please try again.',
+            color: COLORS.error,
+            footerContext: 'Logging',
+          }),
+        ],
+      });
     }
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('Log Channel Set')
-      .addFields(
-        { name: 'Type', value: type, inline: true },
-        { name: 'Channel', value: `<#${channel.id}>`, inline: true }
-      )
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
   },
 };
+
+module.exports = command;

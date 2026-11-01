@@ -57,7 +57,6 @@ const command = {
         moderator: message.author,
         target: member,
         reason,
-        extraFields: [{ name: 'Case', value: inlineCode(member.id), inline: false }],
       });
 
       return message.reply({ embeds: [embed] });

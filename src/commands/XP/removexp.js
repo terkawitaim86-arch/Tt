@@ -1,6 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { addXp, getXpData } = require('../../utils/xpManager');
-const { successEmbed, errorEmbed, usageEmbed, replyOptions } = require('../../utils/embedUtils');
+const { infoEmbed, successEmbed, errorEmbed, usageEmbed, replyOptions } = require('../../utils/embedUtils');
 const { formatNumber } = require('../../utils/format');
 
 module.exports = {
@@ -43,7 +43,7 @@ module.exports = {
     if (currentXp <= 0) {
       return message.reply(
         replyOptions(
-          infoEmbedSafe({
+          infoEmbed({
             title: 'Nothing to remove',
             description: `<@${member.id}> has no XP yet.`,
           })

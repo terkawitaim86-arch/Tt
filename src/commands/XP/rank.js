@@ -1,5 +1,5 @@
 const { getXpData, levelForXp, getRank } = require('../../utils/xpManager');
-const { infoEmbed, errorEmbed, replyOptions } = require('../../utils/embedUtils');
+const { infoEmbed, replyOptions } = require('../../utils/embedUtils');
 const { formatNumber, progressBar, progressPercent, positionLabel } = require('../../utils/format');
 
 module.exports = {
@@ -8,10 +8,7 @@ module.exports = {
   category: 'XP & Levels',
   usage: 'rank [@user]',
   aliases: ['level', 'xp'],
-  async execute(message, guest, client) {
-    return module.exports.run(message);
-  },
-  async run(message) {
+  async execute(message, args, client) {
     const member = message.mentions.members.first() || message.member;
     const data = await getXpData(message.guild.id, member.id);
 

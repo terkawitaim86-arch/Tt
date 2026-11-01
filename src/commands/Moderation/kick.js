@@ -1,31 +1,41 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { checkHierarchy } = require('../../utils/modChecks');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'kick',
   description: 'Kick a member from the server.',
   category: 'Moderation',
   usage: 'kick <@member> [reason]',
   aliases: ['k'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-      return message.reply('You need the **Kick Members** permission to use this command.');
+      return fail('You need the **Kick Members** permission to use this command.', 'Missing permission');
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-      return message.reply(`Usage: \`${prefix}kick <@member> [reason]\``);
+      return fail('Mention the member you want to kick.');
     }
 
     const hierarchyError = checkHierarchy(message, member, 'kick');
-    if (hierarchyError) return message.reply(hierarchyError);
+    if (hierarchyError) {
+      return fail(hierarchyError, 'Member cannot be kicked');
+    }
 
     if (!member.kickable) {
-      return message.reply('I cannot kick that member — they may have a higher role than me.');
+      return fail('I cannot kick that member — they may have a higher role than me.', 'Member cannot be kicked');
     }
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
@@ -40,20 +50,20 @@ module.exports = {
         reason,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('👢 Member Kicked')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+      const embed = moderationEmbed({
+        title: 'Member kicked',
+        description: `A member was kicked from **${message.guild.name}**.`,
+        moderator: message.author,
+        target: member,
+        reason,
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[kick] Failed:', error);
-      return message.reply('Failed to kick that member. Please try again.');
+      logCommandError('kick', error);
+      return fail('I could not kick that member. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

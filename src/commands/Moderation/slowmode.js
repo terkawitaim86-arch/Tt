@@ -1,21 +1,31 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'slowmode',
   description: 'Set the slowmode delay for a channel (0-21600 seconds).',
   category: 'Moderation',
   usage: 'slowmode <seconds> [channel]',
   aliases: ['slow'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return message.reply('You need the **Manage Channels** permission to use this command.');
+      return fail('You need the **Manage Channels** permission to use this command.', 'Missing permission');
     }
 
     const seconds = parseInt(args[0], 10);
-    if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
-      return message.reply('Usage: `slowmode <seconds> [channel]`\nThe delay must be between **0 and 21600** seconds.');
+    if (Number.isNaN(seconds) || seconds < 0 || seconds > 21600) {
+      return fail('The delay must be a whole number between **0 and 21600** seconds.');
     }
 
     const channel = message.mentions.channels.first() || message.channel;
@@ -32,20 +42,23 @@ module.exports = {
         duration: seconds > 0 ? `${seconds}s` : 'off',
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🐢 Slowmode Updated')
-        .addFields(
-          { name: 'Channel', value: `<#${channel.id}>`, inline: true },
-          { name: 'Delay', value: seconds === 0 ? 'Off' : `${seconds} seconds`, inline: true },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: true }
-        )
-        .setTimestamp();
+      const embed = moderationEmbed({
+        title: seconds === 0 ? 'Slowmode disabled' : 'Slowmode updated',
+        description:
+          seconds === 0
+            ? `Members can talk freely again in **#${channel.name}**.`
+            : `Messages in **#${channel.name}** are now limited to one every **${seconds} second${seconds === 1 ? '' : 's'}**.`,
+        moderator: message.author,
+        target: null,
+        extraFields: [{ name: 'Channel', value: `<#${channel.id}>`, inline: true }],
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[slowmode] Failed:', error);
-      return message.reply('Failed to set slowmode. Please try again.');
+      logCommandError('slowmode', error);
+      return fail('I could not set the slowmode. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

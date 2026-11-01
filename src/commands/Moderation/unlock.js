@@ -1,16 +1,26 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'unlock',
   description: 'Unlock a previously locked channel.',
   category: 'Moderation',
   usage: 'unlock [channel] [reason]',
   aliases: [],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return message.reply('You need the **Manage Channels** permission to use this command.');
+      return fail('You need the **Manage Channels** permission to use this command.', 'Missing permission');
     }
 
     const channel = message.mentions.channels.first() || message.channel;
@@ -32,20 +42,21 @@ module.exports = {
         reason,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('🔓 Channel Unlocked')
-        .addFields(
-          { name: 'Channel', value: `<#${channel.id}>`, inline: true },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+      const embed = moderationEmbed({
+        title: 'Channel unlocked',
+        description: `**#${channel.name}** is open for messages again.`,
+        moderator: message.author,
+        target: null,
+        reason,
+        extraFields: [{ name: 'Channel', value: `<#${channel.id}>`, inline: true }],
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[unlock] Failed:', error);
-      return message.reply('Failed to unlock that channel. Please try again.');
+      logCommandError('unlock', error);
+      return fail('I could not unlock that channel. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

@@ -15,6 +15,26 @@ process.env.VITE_SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'vali
 
 const fs = require('fs');
 const path = require('path');
+const Module = require('module');
+
+// @supabase/supabase-js needs a native WebSocket (Node 22+). On older runtimes the
+// module cannot even be imported, so the offline validator substitutes a stub —
+// this only affects this validation run, never the running bot.
+if (typeof globalThis.WebSocket === 'undefined') {
+  const originalLoad = Module._load;
+  Module._load = function patchedLoad(request, parent, isMain) {
+    if (request === '@supabase/supabase-js') {
+      return {
+        createClient: () => ({
+          from: () => ({
+            select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+          }),
+        }),
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+}
 
 const ROOT = path.resolve(__dirname, '..');
 const PREFIX = ',';

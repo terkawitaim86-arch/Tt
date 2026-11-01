@@ -1,25 +1,37 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { addWarning, logAction } = require('../../utils/modLog');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  moderationEmbed,
+  usageErrorEmbed,
+  logCommandError,
+  inlineCode,
+  COLORS,
+} = require('../../utils/embedUtils');
 
-module.exports = {
+const command = {
   name: 'warn',
   description: 'Warn a member. Warnings are stored and can be viewed with ,warnings.',
   category: 'Moderation',
   usage: 'warn <@member> [reason]',
   aliases: ['w'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return message.reply('You need the **Moderate Members** permission to use this command.');
+      return fail('You need the **Moderate Members** permission to use this command.', 'Missing permission');
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply('Usage: `warn <@member> [reason]`');
+      return fail('Mention the member you want to warn.');
     }
 
     if (member.id === message.author.id) {
-      return message.reply('You cannot warn yourself.');
+      return fail('You cannot warn yourself.', 'Invalid target');
     }
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
@@ -40,24 +52,24 @@ module.exports = {
         reason,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('⚠️ Member Warned')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
-
-      if (warningId) {
-        embed.setFooter({ text: `Warning ID: ${warningId.slice(0, 8)}` });
-      }
+      const embed = moderationEmbed({
+        title: 'Member warned',
+        description: `A formal warning was issued in **${message.guild.name}**.`,
+        moderator: message.author,
+        target: member,
+        reason,
+        color: COLORS.warning,
+        extraFields: warningId
+          ? [{ name: 'Warning ID', value: inlineCode(warningId.slice(0, 8)), inline: true }]
+          : [],
+      });
 
       return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[warn] Failed:', error);
-      return message.reply('Failed to warn that member. Please try again.');
+      logCommandError('warn', error);
+      return fail('I could not warn that member. Please try again.', 'Action failed');
     }
   },
 };
+
+module.exports = command;

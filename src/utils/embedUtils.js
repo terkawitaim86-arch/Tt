@@ -102,16 +102,11 @@ function normalizeFields(fields) {
 
 function normalizeAuthor(author) {
   if (!author) return null;
-  if (typeof author === 'string') return { name: truncate(author, LNG_AUTHOR()) };
-  const name = truncate(String(author.name || BRAND), LNG_AUTHOR());
-  const normalized = { name };
+  if (typeof author === 'string') return { name: truncate(author, LIMITS.authorName) };
+  const normalized = { name: truncate(String(author.name || BRAND), LIMITS.authorName) };
   if (author.iconURL) normalized.iconURL = author.iconURL;
   if (author.url) normalized.url = author.url;
   return normalized;
-}
-
-function LNG_AUTHOR() {
-  return LIMITS.authorName;
 }
 
 /**

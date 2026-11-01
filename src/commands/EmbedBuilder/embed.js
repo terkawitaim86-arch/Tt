@@ -1,122 +1,177 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { saveTemplate, getTemplate, listTemplates, deleteTemplate } = require('../../utils/embedStore');
+const { getPrefix } = require('../../utils/prefixManager');
+const {
+  commandEmbed,
+  infoEmbed,
+  successEmbed,
+  usageErrorEmbed,
+  logCommandError,
+  createBaseEmbed,
+  normalizeColor,
+  truncate,
+  LIMITS,
+  COLORS,
+} = require('../../utils/embedUtils');
 
+/** Build a member-supplied embed, clamped to Discord's documented limits. */
 function buildEmbedFromData(data) {
-  const embed = new EmbedBuilder();
-  if (data.title) embed.setTitle(data.title);
-  if (data.description) embed.setDescription(data.description);
-  if (data.color) embed.setColor(parseInt(data.color.replace('#', ''), 16));
-  else embed.setColor(config.embedColor);
-  if (data.thumbnail) embed.setThumbnail(data.thumbnail);
-  if (data.image) embed.setImage(data.image);
-  if (data.footer) embed.setFooter({ text: data.footer });
-  if (data.author) embed.setAuthor({ name: data.author });
-  if (data.fields && Array.isArray(data.fields)) {
-    for (const f of data.fields) {
-      embed.addFields({ name: f.name, value: f.value, inline: f.inline || false });
-    }
-  }
-  if (data.timestamp) embed.setTimestamp();
+  const embed = createBaseEmbed({
+    title: data.title || undefined,
+    description: data.description || undefined,
+    color: data.color ? normalizeColor(String(data.color)) : COLORS.primary,
+    thumbnail: data.thumbnail || undefined,
+    image: data.image || undefined,
+    fields: Array.isArray(data.fields)
+      ? data.fields.map((field) => ({
+          name: field?.name ?? '',
+          value: field?.value ?? '',
+          inline: Boolean(field?.inline),
+        }))
+      : [],
+    footer: data.footer || undefined,
+    author: data.author || undefined,
+    timestamp: Boolean(data.timestamp),
+  });
+
+  if (!embed.data.footer && !data.timestamp) embed.setTimestamp();
+
   return embed;
 }
 
-module.exports = {
+const command = {
   name: 'embed',
-  description: 'Create, save, and send custom embeds.',
+  description: 'Create, save, and send custom embeds with the bot’s shared styling.',
   category: 'Embed Builder',
   usage: 'embed <send|save|load|list|delete> [args...]',
   aliases: ['embedbuilder'],
   async execute(message, args, client) {
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
+    const fail = (problem, title) =>
+      message.reply({ embeds: [usageErrorEmbed(command, prefix, problem, { title })] });
+    const broke = (title, description) =>
+      message.reply({
+        embeds: [createBaseEmbed({ title, description, color: COLORS.error, footerContext: 'Embeds' })],
+      });
+
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return message.reply('You need the **Manage Messages** permission to use this command.');
+      return fail('You need the **Manage Messages** permission to use this command.', 'Missing permission');
     }
 
     const subcommand = args[0]?.toLowerCase();
 
-    if (subcommand === 'send') {
-      const jsonText = args.slice(1).join(' ');
-      if (!jsonText) {
-        return message.reply('Usage: `embed send {"title":"...", "description":"...", "color":"#5865F2", "thumbnail":"url", "image":"url", "footer":"text", "fields":[{"name":"...","value":"..."}]}`');
-      }
+    try {
+      if (subcommand === 'send') {
+        const jsonText = args.slice(1).join(' ');
+        if (!jsonText) {
+          return fail('Provide embed data as JSON.', 'No embed data');
+        }
 
-      try {
-        const data = JSON.parse(jsonText);
+        let data;
+        try {
+          data = JSON.parse(jsonText);
+        } catch {
+          return fail('That is not valid JSON. Check quotes and commas.', 'Invalid JSON');
+        }
+
         const embed = buildEmbedFromData(data);
         if (message.deletable) message.delete().catch(() => {});
         return message.channel.send({ embeds: [embed] });
-      } catch (error) {
-        return message.reply('Invalid JSON. Make sure your embed data is valid JSON.');
-      }
-    }
-
-    if (subcommand === 'save') {
-      const name = args[1]?.toLowerCase();
-      const jsonText = args.slice(2).join(' ');
-
-      if (!name || !jsonText) {
-        return message.reply('Usage: `embed save <name> {"title":"...", ...}`');
       }
 
-      try {
-        const data = JSON.parse(jsonText);
+      if (subcommand === 'save') {
+        const name = args[1]?.toLowerCase();
+        const jsonText = args.slice(2).join(' ');
+
+        if (!name || !jsonText) {
+          return fail('Provide a template name and embed data as JSON.', 'Missing template data');
+        }
+
+        let data;
+        try {
+          data = JSON.parse(jsonText);
+        } catch {
+          return fail('That is not valid JSON. Check quotes and commas.', 'Invalid JSON');
+        }
+
         const success = await saveTemplate(message.guild.id, name, data);
-        if (!success) return message.reply('Failed to save template.');
-        return message.reply(`Embed template **${name}** saved.`);
-      } catch (error) {
-        return message.reply('Invalid JSON. Make sure your embed data is valid JSON.');
+        if (!success) return broke('Template not saved', 'The template could not be saved. Please try again.');
+
+        return message.reply({
+          embeds: [
+            successEmbed({
+              title: 'Template saved',
+              description: `Embed template ${truncate(name, 60)} is ready to use with \`${prefix}embed load ${truncate(name, 60)}\`.`,
+              footerContext: 'Embeds',
+            }),
+          ],
+        });
       }
+
+      if (subcommand === 'load') {
+        const name = args[1]?.toLowerCase();
+        if (!name) return fail('Provide the name of a saved template.', 'No template name');
+
+        const data = await getTemplate(message.guild.id, name);
+        if (!data) return broke('Template not found', `No template named ${truncate(name, 60)} is saved.`);
+
+        const embed = buildEmbedFromData(data);
+        if (message.deletable) message.delete().catch(() => {});
+        return message.channel.send({ embeds: [embed] });
+      }
+
+      if (subcommand === 'list') {
+        const templates = await listTemplates(message.guild.id);
+        if (!templates.length) {
+          return message.reply({
+            embeds: [
+              infoEmbed({
+                title: 'No templates yet',
+                description: `Save one with \`${prefix}embed save <name> {json}\`.`,
+                footerContext: 'Embeds',
+              }),
+            ],
+          });
+        }
+
+        const shown = templates.slice(0, LIMITS.fields);
+        return message.reply({
+          embeds: [
+            infoEmbed({
+              title: 'Saved embed templates',
+              description: shown.map((template) => `\`${truncate(String(template), 90)}\``).join('\n'),
+              footerContext: `${templates.length} template${templates.length === 1 ? '' : 's'}`,
+              author: message.guild ? { name: message.guild.name, iconURL: message.guild.iconURL() || undefined } : undefined,
+            }),
+          ],
+        });
+      }
+
+      if (subcommand === 'delete') {
+        const name = args[1]?.toLowerCase();
+        if (!name) return fail('Provide the name of a saved template.', 'No template name');
+
+        const success = await deleteTemplate(message.guild.id, name);
+        if (!success) return broke('Template not found', `No template named ${truncate(name, 60)} is saved.`);
+
+        return message.reply({
+          embeds: [
+            successEmbed({
+              title: 'Template deleted',
+              description: `Template ${truncate(name, 60)} has been removed.`,
+              footerContext: 'Embeds',
+            }),
+          ],
+        });
+      }
+
+      return message.reply({ embeds: [commandEmbed(command, prefix)] });
+    } catch (error) {
+      logCommandError('embed', error);
+      return broke('Embed action failed', 'That embed action could not be completed. Please try again.');
     }
-
-    if (subcommand === 'load') {
-      const name = args[1]?.toLowerCase();
-      if (!name) {
-        return message.reply('Usage: `embed load <name>`');
-      }
-
-      const data = await getTemplate(message.guild.id, name);
-      if (!data) {
-        return message.reply(`No template named **${name}** found.`);
-      }
-
-      const embed = buildEmbedFromData(data);
-      if (message.deletable) message.delete().catch(() => {});
-      return message.channel.send({ embeds: [embed] });
-    }
-
-    if (subcommand === 'list') {
-      const templates = await listTemplates(message.guild.id);
-      if (templates.length === 0) {
-        return message.reply('No embed templates saved yet.');
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('Saved Embed Templates')
-        .setDescription(templates.map((t) => `\`${t}\``).join('\n'))
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
-    }
-
-    if (subcommand === 'delete') {
-      const name = args[1]?.toLowerCase();
-      if (!name) {
-        return message.reply('Usage: `embed delete <name>`');
-      }
-
-      const success = await deleteTemplate(message.guild.id, name);
-      if (!success) return message.reply(`No template named **${name}** found.`);
-      return message.reply(`Embed template **${name}** deleted.`);
-    }
-
-    return message.reply(
-      'Usage:\n' +
-      '`embed send {"title":"...","description":"..."}` — send an embed\n' +
-      '`embed save <name> {json}` — save a template\n' +
-      '`embed load <name>` — load and send a saved template\n' +
-      '`embed list` — list saved templates\n' +
-      '`embed delete <name>` — delete a template'
-    );
   },
 };
+
+module.exports = command;

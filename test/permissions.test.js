@@ -31,7 +31,7 @@ test('guardModeration accepts a moderator with the required permission', () => {
 });
 
 test('guardModeration reports missing bot permissions', () => {
-  const message = createMessage();
+  const message = createMessage({ botFlags: [] });
   const denied = guardModeration(message, {
     botPermissions: { 'Manage Roles': PermissionFlagsBits.ManageRoles },
   });

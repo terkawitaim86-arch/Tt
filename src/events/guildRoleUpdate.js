@@ -1,6 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../config');
 const { getSettings } = require('../utils/guildSettings');
+const { COLORS, FOOTER_CONTEXT, LIMITS, createBaseEmbed, inlineCode, truncate } = require('../utils/embedUtils');
 
 module.exports = {
   name: 'guildRoleUpdate',
@@ -16,18 +15,28 @@ module.exports = {
     const oldColor = oldRole.color ? `#${oldRole.color.toString(16).padStart(6, '0')}` : 'Default';
     const newColor = newRole.color ? `#${newRole.color.toString(16).padStart(6, '0')}` : 'Default';
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('📝 Role Updated')
-      .addFields(
-        { name: 'Name (Before)', value: oldRole.name, inline: true },
-        { name: 'Name (After)', value: newRole.name, inline: true },
-        { name: '\u200B', value: '\u200B', inline: true },
+    const fields = [{ name: 'Role', value: `${inlineCode(newRole.id)} (${truncate(newRole.name, 64)})`, inline: false }];
+
+    if (oldRole.name !== newRole.name) {
+      fields.push(
+        { name: 'Name (Before)', value: truncate(oldRole.name, LIMITS.fieldValue), inline: true },
+        { name: 'Name (After)', value: truncate(newRole.name, LIMITS.fieldValue), inline: true }
+      );
+    }
+
+    if (oldColor !== newColor) {
+      fields.push(
         { name: 'Color (Before)', value: oldColor, inline: true },
         { name: 'Color (After)', value: newColor, inline: true }
-      )
-      .setFooter({ text: config.botName })
-      .setTimestamp();
+      );
+    }
+
+    const embed = createBaseEmbed({
+      title: 'Role Updated',
+      color: COLORS.info,
+      footerContext: FOOTER_CONTEXT.log,
+      fields,
+    });
 
     logChannel.send({ embeds: [embed] }).catch((err) =>
       console.error('[guildRoleUpdate] Failed to send log message:', err)

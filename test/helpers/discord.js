@@ -3,8 +3,10 @@ const { PermissionFlagsBits } = require('discord.js');
 
 function permissions(flags = []) {
   const set = new Set(flags);
+  // Mirrors discord.js: holding Administrator implies every permission.
+  const granted = (flag) => set.has(flag) || set.has(PermissionFlagsBits.Administrator);
   return {
-    has: (flag) => set.has(flag),
+    has: (flag) => granted(flag),
     any: (list) => list.some((flag) => set.has(flag)),
   };
 }

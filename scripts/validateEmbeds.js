@@ -238,7 +238,8 @@ for (const name of Object.keys(COMMAND_META)) {
 }
 for (const [name, meta] of Object.entries(COMMAND_META)) {
   assert(typeof meta === 'object' && meta !== null, `${name}: metadata must be an object`);
-  assert(typeof meta.category === 'string', `${name}: metadata missing category`);
+  // Category lives on the command module itself (checked in step 1); metadata
+  // intentionally only carries argument/example/permission details.
   if (meta.arguments !== undefined) {
     assert(Array.isArray(meta.arguments), `${name}: metadata arguments must be an array`);
     for (const arg of meta.arguments) {

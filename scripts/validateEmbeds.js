@@ -296,6 +296,41 @@ assert(
   'moderationEmbed: empty reason should still render a Reason field'
 );
 
+// Discord's builders throw when an icon/image is not an absolute http(s) URL.
+// Bad decoration data must be dropped so a command can still reply.
+const badUrls = checkEmbedLimits(
+  'createBaseEmbed(invalid decoration URLs)',
+  createBaseEmbed({
+    title: 'Bad URLs',
+    description: 'Unusable decoration URLs are dropped instead of throwing.',
+    author: { name: 'Tester', iconURL: 'not-a-url', url: 'javascript:void(0)' },
+    thumbnail: 'not-a-url',
+    image: 'data:image/png;base64,AAAA',
+  })
+);
+assert(badUrls.author?.iconURL === undefined, 'createBaseEmbed: invalid author iconURL must be omitted');
+assert(badUrls.author?.url === undefined, 'createBaseEmbed: invalid author url must be omitted');
+assert(badUrls.thumbnail === undefined, 'createBaseEmbed: invalid thumbnail must be omitted');
+assert(badUrls.image === undefined, 'createBaseEmbed: invalid image must be omitted');
+
+const goodUrls = checkEmbedLimits(
+  'createBaseEmbed(valid decoration URLs)',
+  createBaseEmbed({
+    title: 'Good URLs',
+    description: 'Absolute http(s) decoration URLs are kept.',
+    author: { name: 'Tester', iconURL: 'https://cdn.discordapp.com/embed/avatars/0.png' },
+    thumbnail: 'https://cdn.discordapp.com/embed/avatars/1.png',
+  })
+);
+assert(
+  goodUrls.author?.iconURL === 'https://cdn.discordapp.com/embed/avatars/0.png',
+  'createBaseEmbed: valid author iconURL must be kept'
+);
+assert(
+  goodUrls.thumbnail?.url === 'https://cdn.discordapp.com/embed/avatars/1.png',
+  'createBaseEmbed: valid thumbnail must be kept'
+);
+
 const errors = [
   ['errorEmbed(default)', errorEmbed()],
   ['errorEmbed(with usage)', errorEmbed({ description: 'Missing member.', usage: ',ban <@member> [reason]', example: ',ban @user spamming' })],

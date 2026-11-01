@@ -1,6 +1,6 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
 const { getPrefix } = require('../../utils/prefixManager');
+const { infoEmbed, errorEmbed, replyOptions } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'help',
@@ -22,73 +22,81 @@ module.exports = {
 };
 
 function showFullHelp(message, client, prefix) {
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${config.botName} — Help Menu`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription('Here are all the available and planned features.')
-    .setTimestamp();
+  const fields = [];
 
   for (const category of config.categories) {
     const header = `${category.emoji} ${category.name}`;
 
     if (category.comingSoon) {
-      embed.addFields({
+      fields.push({
         name: header,
         value: `*Coming Soon* — ${category.description || 'Planned feature'}`,
         inline: false,
       });
-    } else {
-      const seen = new Set();
-      const commands = [];
-      for (const [key, cmd] of client.commands) {
-        if (cmd.category === category.name && !seen.has(cmd.name)) {
-          seen.add(cmd.name);
-          commands.push(`\`${prefix}${cmd.name}\``);
-        }
-      }
-
-      embed.addFields({
-        name: header,
-        value: commands.length > 0 ? commands.join(' • ') : 'No commands yet',
-        inline: false,
-      });
+      continue;
     }
+
+    const seen = new Set();
+    const commands = [];
+    for (const [key, cmd] of client.commands) {
+      if (cmd.category === category.name && !seen.has(cmd.name)) {
+        seen.add(cmd.name);
+        commands.push(`\`${prefix}${cmd.name}\``);
+      }
+    }
+
+    fields.push({
+      name: header,
+      value: commands.length > 0 ? commands.join(' • ') : 'No commands yet',
+      inline: false,
+    });
   }
 
-  embed.setFooter({
-    text: `Use ${prefix}help <command> for details • Prefix: ${prefix}`,
+  const embed = infoEmbed({
+    title: `${config.botName} — Help Menu`,
+    description: `Here are all the available features.\nUse \`${prefix}help <command>\` for details.`,
+    thumbnail: client.user.displayAvatarURL({ size: 256 }),
+    fields,
+    footer: `${config.botName} • Prefix: ${prefix}`,
   });
 
-  return message.reply({ embeds: [embed] });
+  return message.reply(replyOptions(embed));
 }
 
 function showCommandHelp(message, commandName, client, prefix) {
   const command = client.commands.get(commandName.toLowerCase());
 
   if (!command) {
-    return message.reply(`No command found named \`${commandName}\`.`);
+    return message.reply(
+      replyOptions(
+        errorEmbed({
+          title: 'Unknown command',
+          description: `No command found named \`${commandName}\`.\nTry \`${prefix}help\` to list every command.`,
+        })
+      )
+    );
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${prefix}${command.name}`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription(command.description || 'No description available.')
-    .addFields(
-      { name: 'Category', value: command.category || 'Unknown', inline: true },
-      { name: 'Usage', value: `\`${prefix}${command.usage || command.name}\``, inline: true }
-    )
-    .setFooter({ text: `${config.botName} • Prefix: ${prefix}` })
-    .setTimestamp();
+  const fields = [
+    { name: 'Category', value: command.category || 'Unknown', inline: true },
+    { name: 'Usage', value: `\`${prefix}${command.usage || command.name}\``, inline: true },
+  ];
 
   if (command.aliases && command.aliases.length > 0) {
-    embed.addFields({
+    fields.push({
       name: 'Aliases',
       value: command.aliases.map((a) => `\`${a}\``).join(', '),
       inline: true,
     });
   }
 
-  return message.reply({ embeds: [embed] });
+  const embed = infoEmbed({
+    title: `${prefix}${command.name}`,
+    description: command.description || 'No description available.',
+    thumbnail: client.user.displayAvatarURL({ size: 256 }),
+    fields,
+    footer: `${config.botName} • Prefix: ${prefix}`,
+  });
+
+  return message.reply(replyOptions(embed));
 }

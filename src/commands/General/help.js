@@ -1,6 +1,14 @@
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../config');
 const { getPrefix } = require('../../utils/prefixManager');
+const {
+  commandEmbed,
+  usageErrorEmbed,
+  createBaseEmbed,
+  inlineCode,
+  truncate,
+  COLORS,
+  BRAND,
+} = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'help',
@@ -9,9 +17,7 @@ module.exports = {
   usage: 'help [command]',
   aliases: ['h', 'commands'],
   async execute(message, args, client) {
-    const prefix = message.guild
-      ? await getPrefix(message.guild.id)
-      : config.defaultPrefix;
+    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
 
     if (args[0]) {
       return showCommandHelp(message, args[0], client, prefix);
@@ -21,74 +27,81 @@ module.exports = {
   },
 };
 
-function showFullHelp(message, client, prefix) {
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${config.botName} — Help Menu`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription('Here are all the available and planned features.')
-    .setTimestamp();
+function uniqueCommands(client) {
+  const seen = new Set();
+  const commands = [];
 
-  for (const category of config.categories) {
-    const header = `${category.emoji} ${category.name}`;
-
-    if (category.comingSoon) {
-      embed.addFields({
-        name: header,
-        value: `*Coming Soon* — ${category.description || 'Planned feature'}`,
-        inline: false,
-      });
-    } else {
-      const seen = new Set();
-      const commands = [];
-      for (const [key, cmd] of client.commands) {
-        if (cmd.category === category.name && !seen.has(cmd.name)) {
-          seen.add(cmd.name);
-          commands.push(`\`${prefix}${cmd.name}\``);
-        }
-      }
-
-      embed.addFields({
-        name: header,
-        value: commands.length > 0 ? commands.join(' • ') : 'No commands yet',
-        inline: false,
-      });
-    }
+  for (const command of client.commands.values()) {
+    if (seen.has(command.name)) continue;
+    seen.add(command.name);
+    commands.push(command);
   }
 
-  embed.setFooter({
-    text: `Use ${prefix}help <command> for details • Prefix: ${prefix}`,
+  return commands;
+}
+
+function showFullHelp(message, client, prefix) {
+  const commands = uniqueCommands(client);
+  const fields = [];
+
+  for (const category of config.categories) {
+    const names = commands
+      .filter((command) => command.category === category.name)
+      .map((command) => inlineCode(`${prefix}${command.name}`));
+
+    if (category.comingSoon) {
+      fields.push({
+        name: category.name,
+        value: `*Coming soon* — ${category.description || 'Planned feature'}`,
+        inline: false,
+      });
+      continue;
+    }
+
+    fields.push({
+      name: category.name,
+      value: names.length > 0 ? names.join(' • ') : 'No commands yet',
+      inline: false,
+    });
+  }
+
+  const embed = createBaseEmbed({
+    title: `${config.botName} — Commands`,
+    description: truncate(
+      `All ${commands.length} commands are listed below. Use ${inlineCode(`${prefix}help <command>`)} for syntax, arguments and examples.`,
+      500
+    ),
+    thumbnail: client.user?.displayAvatarURL({ size: 256 }),
+    fields,
+    footer: truncate(`${BRAND} • Prefix ${prefix}`, 2048),
+    color: COLORS.primary,
   });
 
   return message.reply({ embeds: [embed] });
 }
 
 function showCommandHelp(message, commandName, client, prefix) {
-  const command = client.commands.get(commandName.toLowerCase());
+  const query = commandName.toLowerCase();
+  const command = client.commands.get(query) || client.commands.get(`help:${query}`);
 
   if (!command) {
-    return message.reply(`No command found named \`${commandName}\`.`);
+    const embed = usageErrorEmbed(
+      null,
+      prefix,
+      `No command called ${inlineCode(query)} exists.`,
+      {
+        title: 'Unknown command',
+        example: `${prefix}help`,
+      }
+    );
+
+    embed.setDescription(`No command called ${inlineCode(query)} exists. Try ${inlineCode(`${prefix}help`)} for the full list.`);
+    return message.reply({ embeds: [embed] });
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${prefix}${command.name}`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription(command.description || 'No description available.')
-    .addFields(
-      { name: 'Category', value: command.category || 'Unknown', inline: true },
-      { name: 'Usage', value: `\`${prefix}${command.usage || command.name}\``, inline: true }
-    )
-    .setFooter({ text: `${config.botName} • Prefix: ${prefix}` })
-    .setTimestamp();
-
-  if (command.aliases && command.aliases.length > 0) {
-    embed.addFields({
-      name: 'Aliases',
-      value: command.aliases.map((a) => `\`${a}\``).join(', '),
-      inline: true,
-    });
-  }
+  const embed = commandEmbed(command, prefix, {
+    thumbnail: client.user?.displayAvatarURL({ size: 128 }),
+  });
 
   return message.reply({ embeds: [embed] });
 }

@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js",
+    "check": "node scripts/validateEmbeds.js",
+    "test": "node scripts/validateEmbeds.js",
     "validate:embeds": "node scripts/validateEmbeds.js"
   },
   "engines": { "node": ">=22" },

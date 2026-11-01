@@ -1,6 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
-const { successEmbed, usageEmbed } = require('../../utils/embedUtils');
+const { successEmbed, errorEmbed, usageEmbed, replyOptions } = require('../../utils/embedUtils');
 const { guardModeration, describeDiscordError } = require('../../utils/permissions');
 const { truncate } = require('../../utils/format');
 const { logAction } = require('../../utils/modLog');
@@ -12,19 +12,16 @@ module.exports = {
   category: 'Moderation',
   usage: 'ban <@member> [reason]',
   aliases: ['b'],
-  async execute(message, args, client) {
-    const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-
+  async execute(message, args) {
+    const prefix = await getPrefix(message.guild.id);
     const member = message.mentions.members.first();
+
     if (!member) {
-      return message.reply({
-        embeds: [usageEmbed({
-          command: 'ban',
-          syntax: `${prefix}ban <@member> [reason]`,
-          example: `${prefix}ban @Spammer Repeated advertising`,
-        })],
-        allowedMentions: { parse: [], repliedUser: false },
-      });
+      return message.reply(replyOptions(usageEmbed({
+        command: 'ban',
+        syntax: `${prefix}ban <@member> [reason]`,
+        example: `${prefix}ban @Spammer Repeated advertising`,
+      })));
     }
 
     const denied = guardModeration(message, {
@@ -35,9 +32,7 @@ module.exports = {
       actionName: 'ban',
       command: 'ban',
     });
-    if (denied) {
-      return message.reply({ embeds: [denied], allowedMentions: { parse: [], repliedUser: false } });
-    }
+    if (denied) return message.reply(replyOptions(denied));
 
     const reason = truncate(args.slice(1).join(' ') || 'No reason provided', 900);
 
@@ -45,12 +40,11 @@ module.exports = {
       await member.ban({ reason: `${message.author.tag}: ${reason}` });
     } catch (error) {
       console.error(`[ban] Failed to ban ${member.id}:`, error.message);
-      return message.reply({
-        embeds: [{
-          ...successEmbed({ title: 'Ban failed', description: describeDiscordError(error, 'I could not ban that member.'), color: 0xef4444, footer: 'ZMB • ban' }).data,
-        }],
-        allowedMentions: { parse: [], repliedUser: false },
-      });
+      return message.reply(replyOptions(errorEmbed({
+        title: 'Ban failed',
+        description: describeDiscordError(error, 'I could not ban that member.'),
+        footer: 'ZMB • ban',
+      })));
     }
 
     await logAction({
@@ -61,18 +55,15 @@ module.exports = {
       reason,
     });
 
-    return message.reply({
-      embeds: [successEmbed({
-        title: 'Member banned',
-        description: `<@${member.id}> has been banned.`,
-        footer: 'ZMB • ban',
-        fields: [
-          { name: 'Member', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
-          { name: 'Moderator', value: `${message.author.tag}\n<@${message.author.id}>`, inline: true },
-          { name: 'Reason', value: reason, inline: false },
-        ],
-      })],
-      allowedMentions: { parse: [], repliedUser: false },
-    });
+    return message.reply(replyOptions(successEmbed({
+      title: 'Member banned',
+      description: `<@${member.id}> has been banned from the server.`,
+      footer: 'ZMB • ban',
+      fields: [
+        { name: 'Member', value: `\`${member.id}\``, inline: true },
+        { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
+        { name: 'Reason', value: reason, inline: false },
+      ],
+    })));
   },
 };

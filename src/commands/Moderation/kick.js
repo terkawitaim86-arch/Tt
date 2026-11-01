@@ -1,5 +1,7 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
+const { PermissionFlagsBits } = require('discord.js');
+const { successEmbed, errorEmbed, usageEmbed, replyOptions } = require('../../utils/embedUtils');
+const { guardModeration, describeDiscordError } = require('../../utils/permissions');
+const { truncate } = require('../../utils/format');
 const { logAction } = require('../../utils/modLog');
 const { getPrefix } = require('../../utils/prefixManager');
 
@@ -8,52 +10,59 @@ module.exports = {
   description: 'Kick a member from the server.',
   category: 'Moderation',
   usage: 'kick <@member> [reason]',
-  aliases: [],
-  async execute(message, args, client) {
-    if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-      return message.reply('You need the **Kick Members** permission to use this command.');
-    }
-
+  aliases: ['k'],
+  async execute(message, args) {
+    const prefix = await getPrefix(message.guild.id);
     const member = message.mentions.members.first();
+
     if (!member) {
-      const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-      return message.reply(`Usage: \`${prefix}kick <@member> [reason]\``);
+      return message.reply(replyOptions(usageEmbed({
+        command: 'kick',
+        syntax: `${prefix}kick <@member> [reason]`,
+        example: `${prefix}kick @Member Breaking rules`,
+      })));
     }
 
-    if (member.id === message.author.id) {
-      return message.reply('You cannot kick yourself.');
-    }
+    const denied = guardModeration(message, {
+      permission: PermissionFlagsBits.KickMembers,
+      permissionLabel: 'Kick Members',
+      botPermissions: { 'Kick Members': PermissionFlagsBits.KickMembers },
+      target: member,
+      actionName: 'kick',
+      command: 'kick',
+    });
+    if (denied) return message.reply(replyOptions(denied));
 
-    if (!member.kickable) {
-      return message.reply('I cannot kick that member — they may have a higher role than me.');
-    }
-
-    const reason = args.slice(1).join(' ') || 'No reason provided';
+    const reason = truncate(args.slice(1).join(' ') || 'No reason provided', 900);
 
     try {
       await member.kick(`${message.author.tag}: ${reason}`);
-      await logAction({
-        guildId: message.guild.id,
-        action: 'kick',
-        targetId: member.id,
-        moderatorId: message.author.id,
-        reason,
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('👢 Member Kicked')
-        .addFields(
-          { name: 'Member', value: `<@${member.id}> (${member.user.tag})`, inline: false },
-          { name: 'Moderator', value: `<@${message.author.id}>`, inline: false },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
     } catch (error) {
-      console.error('[kick] Failed:', error);
-      return message.reply('Failed to kick that member. Please try again.');
+      console.error(`[kick] Failed to kick ${member.id}:`, error.message);
+      return message.reply(replyOptions(errorEmbed({
+        title: 'Kick failed',
+        description: describeDiscordError(error, 'I could not kick that member.'),
+        footer: 'ZMB • kick',
+      })));
     }
+
+    await logAction({
+      guildId: message.guild.id,
+      action: 'kick',
+      targetId: member.id,
+      moderatorId: message.author.id,
+      reason,
+    });
+
+    return message.reply(replyOptions(successEmbed({
+      title: 'Member kicked',
+      description: `<@${member.id}> has been kicked from the server.`,
+      footer: 'ZMB • kick',
+      fields: [
+        { name: 'Member', value: `\`${member.id}\``, inline: true },
+        { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
+        { name: 'Reason', value: reason, inline: false },
+      ],
+    })));
   },
 };

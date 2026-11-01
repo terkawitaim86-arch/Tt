@@ -1,6 +1,6 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
 const { getLeaderboard } = require('../../utils/xpManager');
+const { infoEmbed, replyOptions } = require('../../utils/embedUtils');
+const { formatNumber, positionLabel, truncate } = require('../../utils/format');
 
 module.exports = {
   name: 'leaderboard',
@@ -11,23 +11,28 @@ module.exports = {
   async execute(message, args, client) {
     const leaderboard = await getLeaderboard(message.guild.id, 10);
 
-    if (leaderboard.length === 0) {
-      return message.reply('No XP data yet. Start chatting to earn XP!');
+    if (!leaderboard || leaderboard.length === 0) {
+      return message.reply(
+        replyOptions(
+          infoEmbed({
+            title: 'Leaderboard empty',
+            description: 'No XP data yet. Start chatting to earn XP!',
+          })
+        )
+      );
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`XP Leaderboard — ${message.guild.name}`)
-      .setTimestamp();
-
-    const medals = ['first', 'second', 'third'];
     const lines = leaderboard.map((entry, i) => {
-      const medal = i === 0 ? 'first' : i === 1 ? 'second' : i === 2 ? 'third' : `${i + 1}.`;
-      return `${medal} <@${entry.user_id}> — Level ${entry.level} (${entry.xp} XP)`;
+      const label = positionLabel(i);
+      return `${label} <@${entry.user_id}> — Level ${formatNumber(entry.level)} · ${formatNumber(entry.xp)} XP`;
     });
 
-    embed.setDescription(lines.join('\n'));
+    const embed = infoEmbed({
+      title: `XP Leaderboard — ${message.guild.name}`,
+      description: truncate(lines.join('\n'), 4000),
+      footer: `Top ${leaderboard.length} members • ZMB`,
+    });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply(replyOptions(embed));
   },
 };

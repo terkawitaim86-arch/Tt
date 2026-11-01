@@ -16,6 +16,7 @@ process.env.VITE_SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'vali
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const { execFileSync } = require('child_process');
 
 // @supabase/supabase-js needs a native WebSocket (Node 22+). On older runtimes the
 // module cannot even be imported, so the offline validator substitutes a stub —

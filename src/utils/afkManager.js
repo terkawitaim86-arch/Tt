@@ -1,6 +1,4 @@
-
-onst supabase = require('./db');
-
+const supabase = require('./db');
 async function setAfk(guildId, userId, reason) {
   const { error } = await supabase
     .from('afk_status')

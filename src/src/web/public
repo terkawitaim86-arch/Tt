@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZMB Embed Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <aside class="sidebar">
+    <h2>ZMB<span>.</span></h2>
+    <p class="muted">CREATOR STUDIO</p>
+
+    <nav>
+      <a class="active">✦ Embed Builder</a>
+      <a>▣ Templates</a>
+      <a>⚙ Settings</a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <span class="status-dot"></span>
+      ZMB SYSTEM ONLINE
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <p class="muted">ZMB / CREATOR TOOLS</p>
+        <h1>Embed Studio</h1>
+        <p class="muted">Create beautiful Discord messages.</p>
+      </div>
+      <span class="online">● SYSTEM ONLINE</span>
+    </header>
+
+    <section class="workspace">
+
+      <div class="editor">
+        <h2>Message editor</h2>
+        <p class="muted">CUSTOMIZE YOUR EMBED</p>
+
+        <label>Title</label>
+        <input id="title" placeholder="Enter embed title">
+
+        <label>Description</label>
+        <textarea id="description" rows="5"
+          placeholder="Write your message..."></textarea>
+
+        <label>Author</label>
+        <input id="author" placeholder="Author name">
+
+        <label>Colour</label>
+        <div class="color-row">
+          <input type="color" id="color" value="#5865F2">
+          <span id="colorValue">#5865F2</span>
+        </div>
+
+        <label>Footer</label>
+        <input id="footer" placeholder="Footer text">
+
+        <label>Thumbnail URL</label>
+        <input id="thumbnail" placeholder="https://...">
+
+        <label>Image URL</label>
+        <input id="image" placeholder="https://...">
+
+        <div class="actions">
+          <button class="secondary" id="clear">Clear</button>
+          <button class="primary" id="copy">Copy JSON</button>
+        </div>
+      </div>
+
+      <div class="preview-section">
+        <h2>Live preview</h2>
+        <p class="muted">DISCORD MESSAGE PREVIEW</p>
+
+        <div class="discord">
+          <div class="bot-avatar">Z</div>
+          <div class="message">
+            <strong>ZMB OFFICIAL</strong>
+            <span class="bot-tag">BOT</span>
+            <div class="embed" id="preview">
+              <div class="embed-content">
+                <div class="embed-author" id="previewAuthor"></div>
+                <h3 id="previewTitle">Your title appears here</h3>
+                <p id="previewDescription">
+                  Your embed description will appear here.
+                </p>
+                <img id="previewThumbnail" class="thumbnail" hidden>
+                <img id="previewImage" class="main-image" hidden>
+                <div class="embed-footer" id="previewFooter"></div>
+              </div>
+            </div>
+            <span class="muted">Today at 12:00</span>
+          </div>
+        </div>
+
+        <div class="preview-note">
+          Your preview updates automatically as you edit.
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

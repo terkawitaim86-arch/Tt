@@ -1,0 +1,99 @@
+const fields = {
+  title: document.getElementById('title'),
+  description: document.getElementById('description'),
+  color: document.getElementById('color'),
+  author: document.getElementById('author'),
+  footer: document.getElementById('footer'),
+  image: document.getElementById('image'),
+  thumbnail: document.getElementById('thumbnail')
+};
+
+const preview = {
+  title: document.getElementById('previewTitle'),
+  description: document.getElementById('previewDescription'),
+  footer: document.getElementById('previewFooter'),
+  thumbnail: document.getElementById('previewThumbnail'),
+  image: document.getElementById('previewImage'),
+  embed: document.getElementById('preview')
+};
+
+function updatePreview() {
+  preview.title.textContent = fields.title.value || 'Embed title';
+  preview.description.textContent =
+    fields.description.value || 'Your description will appear here.';
+
+  preview.footer.textContent = fields.footer.value;
+
+  preview.embed.style.borderLeftColor = fields.color.value;
+
+  updateImage(preview.image, fields.image.value);
+  updateImage(preview.thumbnail, fields.thumbnail.value);
+}
+
+function updateImage(element, url) {
+  if (!url.trim()) {
+    element.hidden = true;
+    element.removeAttribute('src');
+    return;
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Invalid URL');
+    }
+
+    element.onload = () => {
+      element.hidden = false;
+    };
+
+    element.onerror = () => {
+      element.hidden = true;
+    };
+
+    element.src = parsed.href;
+  } catch {
+    element.hidden = true;
+    element.removeAttribute('src');
+  }
+}
+
+Object.values(fields).forEach((field) => {
+  field.addEventListener('input', updatePreview);
+});
+
+document.getElementById('save').addEventListener('click', () => {
+  const data = {};
+
+  Object.entries(fields).forEach(([key, field]) => {
+    data[key] = field.value;
+  });
+
+  localStorage.setItem('zmb-embed-draft', JSON.stringify(data));
+
+  alert('Embed draft saved on this device!');
+});
+
+function loadDraft() {
+  try {
+    const saved = localStorage.getItem('zmb-embed-draft');
+
+    if (!saved) return;
+
+    const data = JSON.parse(saved);
+
+    Object.entries(fields).forEach(([key, field]) => {
+      if (typeof data[key] === 'string') {
+        field.value = data[key];
+      }
+    });
+
+    updatePreview();
+  } catch (error) {
+    console.error('Could not load embed draft:', error);
+  }
+}
+
+loadDraft();
+updatePreview();

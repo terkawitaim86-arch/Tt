@@ -1,83 +1,207 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
-const { createCustomCommand, deleteCustomCommand, getAllCustomCommands } = require('../../utils/customCommandManager');
+
+const { PermissionFlagsBits } = require('discord.js');
+
+const {
+  getAllCustomCommands,
+  createCustomCommand,
+  deleteCustomCommand,
+} = require('../../utils/customCommandManager');
+
+const { getPrefix } = require('../../utils/prefixManager');
+
+const {
+  errorEmbed,
+  usageEmbed,
+  successEmbed,
+  infoEmbed,
+} = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'customcommand',
-  description: 'Create, list, and delete custom commands for your server.',
+  description: 'Create, delete, or list custom commands.',
   category: 'Custom Commands',
-  usage: 'customcommand <add|list|delete> [name] [response]',
+  usage: 'customcommand <create|delete|list> [name] [response]',
   aliases: ['cc'],
+
   async execute(message, args, client) {
-    const subcommand = args[0]?.toLowerCase();
+    if (!message.guild || !message.member) return;
 
-    if (subcommand === 'add') {
-      if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-        return message.reply('You need the **Manage Server** permission to create custom commands.');
-      }
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      return message.reply({
+        embeds: [
+          errorEmbed({
+            description: 'You need the **Manage Server** permission.',
+          }),
+        ],
+      });
+    }
 
+    const prefix = await getPrefix(message.guild.id).catch(() => ',');
+
+    const sub = args[0]?.toLowerCase();
+
+    if (sub === 'create' || sub === 'add') {
       const name = args[1]?.toLowerCase();
-      const response = args.slice(2).join(' ');
+      const response = args.slice(2).join(' ').trim();
 
       if (!name || !response) {
-        return message.reply('Usage: `customcommand add <name> <response>`');
+        return message.reply({
+          embeds: [
+            usageEmbed({
+              command: 'customcommand create',
+              syntax: `${prefix}cc create <name> <response>`,
+              example: `${prefix}cc create hello Hello there!`,
+            }),
+          ],
+        });
       }
 
-      if (client.commands.has(name)) {
-        return message.reply(`\`${name}\` is already a built-in command. Choose a different name.`);
+      const commandName = name.trim();
+
+      if (!/^[a-z0-9_-]{1,32}$/.test(commandName)) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description:
+                'Command names can only contain letters, numbers, underscores and hyphens. Maximum length: 32 characters.',
+            }),
+          ],
+        });
       }
 
-      const success = await createCustomCommand(message.guild.id, name, response, message.author.id);
-      if (!success) return message.reply('Failed to save the custom command. Please try again.');
+      if (response.length > 2000) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description: 'Custom command responses cannot exceed 2,000 characters.',
+            }),
+          ],
+        });
+      }
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle('Custom Command Created')
-        .addFields(
-          { name: 'Name', value: `\`${name}\``, inline: true },
-          { name: 'Response', value: response.slice(0, 1024), inline: false }
-        )
-        .setTimestamp();
+      const existingCommand = client?.commands?.get(commandName);
 
-      return message.reply({ embeds: [embed] });
+      if (existingCommand) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description: 'That name is already used by one of ZMB OFFICIAL\'s commands or aliases.',
+            }),
+          ],
+        });
+      }
+
+      const ok = await createCustomCommand(
+        message.guild.id,
+        commandName,
+        response,
+        message.author.id
+      );
+
+      if (!ok) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description: 'Failed to save the custom command. Please try again.',
+            }),
+          ],
+        });
+      }
+
+      return message.reply({
+        embeds: [
+          successEmbed({
+            title: 'Custom Command Created',
+            description: `**Command:** \`${prefix}${commandName}\`\n**Response:** ${response.slice(0, 200)}`,
+          }),
+        ],
+        allowedMentions: { parse: [] },
+      });
     }
 
-    if (subcommand === 'delete') {
-      if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-        return message.reply('You need the **Manage Server** permission to delete custom commands.');
-      }
-
+    if (sub === 'delete' || sub === 'remove') {
       const name = args[1]?.toLowerCase();
+
       if (!name) {
-        return message.reply('Usage: `customcommand delete <name>`');
+        return message.reply({
+          embeds: [
+            usageEmbed({
+              command: 'customcommand delete',
+              syntax: `${prefix}cc delete <name>`,
+            }),
+          ],
+        });
       }
 
-      const success = await deleteCustomCommand(message.guild.id, name);
-      if (!success) return message.reply(`No custom command named \`${name}\` found.`);
+      const ok = await deleteCustomCommand(message.guild.id, name);
 
-      return message.reply(`Custom command \`${name}\` deleted.`);
-    }
-
-    if (subcommand === 'list') {
-      const commands = await getAllCustomCommands(message.guild.id);
-      if (commands.length === 0) {
-        return message.reply('No custom commands created yet.');
+      if (!ok) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description: `No custom command named \`${name}\` was found.`,
+            }),
+          ],
+        });
       }
 
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle(`Custom Commands — ${message.guild.name}`)
-        .setDescription(commands.map((c) => `\`${c.command_name}\``).join(' • '))
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
+      return message.reply({
+        embeds: [
+          successEmbed({
+            description: `Successfully deleted custom command \`${name}\`.`,
+          }),
+        ],
+      });
     }
 
-    return message.reply(
-      'Usage:\n' +
-      '`customcommand add <name> <response>` — create a custom command\n' +
-      '`customcommand list` — list all custom commands\n' +
-      '`customcommand delete <name>` — delete a custom command'
-    );
+    if (sub === 'list' || !sub) {
+      const list = await getAllCustomCommands(message.guild.id);
+
+      if (!list.length) {
+        return message.reply({
+          embeds: [
+            infoEmbed({
+              title: 'Custom Commands',
+              description: 'No custom commands have been created yet.',
+            }),
+          ],
+        });
+      }
+
+      const commandList = list.map(
+        (command) => `\`${prefix}${command.command_name}\``
+      );
+
+      const chunks = [];
+
+      for (let i = 0; i < commandList.length; i += 40) {
+        chunks.push(commandList.slice(i, i + 40));
+      }
+
+      const embeds = chunks.slice(0, 10).map((chunk, index) =>
+        infoEmbed({
+          title: chunks.length > 1
+            ? `Custom Commands (${index + 1}/${chunks.length})`
+            : 'Custom Commands',
+          description: chunk.join('\n'),
+          footer: `Total commands: ${list.length}`,
+        })
+      );
+
+      return message.reply({
+        embeds,
+        allowedMentions: { parse: [] },
+      });
+    }
+
+    return message.reply({
+      embeds: [
+        usageEmbed({
+          command: 'customcommand',
+          syntax: `${prefix}cc <create|delete|list> ...`,
+          example: `${prefix}cc create hello Hello there!`,
+        }),
+      ],
+    });
   },
 };

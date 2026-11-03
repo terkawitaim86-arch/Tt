@@ -1,51 +1,82 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../config');
-const { getSettings } = require('../utils/guildSettings');
-const { logAction } = require('../utils/modLog');
 
-module.exports = {
-  name: 'guildBanAdd',
-  async execute(ban, client) {
-    const { guild, user } = ban;
+const fs = require('fs');
+const path = require('path');
 
-    const settings = await getSettings(guild.id);
+function loadEvents(client) {
+  const eventsPath = path.join(__dirname, '..', 'events');
 
-    // Server log embed
-    if (settings.log_server_channel_id) {
-      const logChannel = guild.channels.cache.get(settings.log_server_channel_id);
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setColor(config.embedColor)
-          .setTitle('🔨 Member Banned')
-          .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-          .addFields(
-            { name: 'Member', value: `${user.tag} (<@${user.id}>)`, inline: false },
-            { name: 'ID', value: user.id, inline: false }
-          )
-          .setFooter({ text: config.botName })
-          .setTimestamp();
+  if (!fs.existsSync(eventsPath)) {
+    console.error('[Event Handler] Events folder not found:', eventsPath);
+    return;
+  }
 
-        logChannel.send({ embeds: [embed] }).catch((err) =>
-          console.error('[guildBanAdd] Failed to send log message:', err)
-        );
-      }
-    }
+  const eventFiles = fs
+    .readdirSync(eventsPath)
+    .filter((file) => file.endsWith('.js'));
 
-    // Record in moderation_logs if it wasn't done by the bot
+  let loaded = 0;
+  let failed = 0;
+
+  for (const file of eventFiles) {
+    const filePath = path.join(eventsPath, file);
+
     try {
-      const auditLogs = await guild.fetchAuditLogs({ type: 22, limit: 1 }); // 22 = MEMBER_BAN_ADD
-      const entry = auditLogs.entries.first();
-      if (entry && entry.target?.id === user.id && entry.executor?.id !== client.user.id) {
-        await logAction({
-          guildId: guild.id,
-          action: 'ban',
-          targetId: user.id,
-          moderatorId: entry.executor.id,
-          reason: entry.reason || null,
-        });
+      const event = require(filePath);
+
+      if (
+        !event ||
+        typeof event.name !== 'string' ||
+        typeof event.execute !== 'function'
+      ) {
+        console.warn(`[Event Handler] Skipping invalid event: ${file}`);
+        failed++;
+        continue;
       }
-    } catch (err) {
-      console.error('[guildBanAdd] Failed to fetch audit logs:', err);
+
+      const handler = (...args) => {
+        try {
+          const result = event.execute(...args, client);
+
+          if (result && typeof result.catch === 'function') {
+            result.catch((error) => {
+              console.error(
+                `[Event Handler] Error in ${event.name}:`,
+                error
+              );
+            });
+          }
+        } catch (error) {
+          console.error(
+            `[Event Handler] Error in ${event.name}:`,
+            error
+          );
+        }
+      };
+
+      if (event.once) {
+        client.once(event.name, handler);
+      } else {
+        client.on(event.name, handler);
+      }
+
+      loaded++;
+    } catch (error) {
+      failed++;
+
+      console.error(
+        `[Event Handler] Failed to load ${file}:`,
+        error
+      );
     }
-  },
-};
+  }
+
+  console.log(
+    `[Event Handler] Loaded ${loaded}/${eventFiles.length} events.`
+  );
+
+  if (failed > 0) {
+    console.warn(`[Event Handler] ${failed} event(s) failed to load.`);
+  }
+}
+
+module.exports = { loadEvents };

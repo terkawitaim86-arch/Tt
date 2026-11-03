@@ -1,99 +1,64 @@
-const { EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const config = require('../../config');
-const { addButtonRole } = require('../../utils/roleManager');
+const { errorEmbed, usageEmbed, successEmbed } = require('../../utils/embedUtils');
+const { getPrefix } = require('../../utils/prefixManager');
 
 module.exports = {
   name: 'buttonrole',
-  description: 'Create a button role message. Members click a button to get a role.',
+  description: 'Create a button role panel.',
   category: 'Reaction Roles',
   usage: 'buttonrole <title> | <label1> <@role1> | <label2> <@role2> ...',
   aliases: ['br'],
-  async execute(message, args, client) {
+  async execute(message, args) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      return message.reply('You need the **Manage Roles** permission to use this command.');
+      return message.reply({ embeds: [errorEmbed({ description: 'You need the **Manage Roles** permission.' })] });
     }
-
-    const fullText = args.join(' ');
-    const parts = fullText.split('|').map((p) => p.trim());
-
-    if (parts.length < 3) {
-      return message.reply('Usage: `buttonrole <title> | <label1> <@role1> | <label2> <@role2> ...`');
+    const parts = args.join(' ').split('|').map((p) => p.trim());
+    if (parts.length < 2) {
+      const prefix = await getPrefix(message.guild.id);
+      return message.reply({
+        embeds: [
+          usageEmbed({
+            command: 'buttonrole',
+            syntax: `${prefix}buttonrole <title> | <label> <@role> | ...`,
+          }),
+        ],
+      });
     }
-
     const title = parts[0];
-    const rolePairs = parts.slice(1);
-
-    if (rolePairs.length > 25) {
-      return message.reply('You can only have up to 25 buttons (5 rows of 5).');
+    const pairs = [];
+    for (const part of parts.slice(1)) {
+      const m = part.match(/^(.+?)\s+<@&?(\d+)>$/);
+      if (!m) continue;
+      const label = m[1].trim().slice(0, 80);
+      const role = message.guild.roles.cache.get(m[2]);
+      if (role) pairs.push({ label, role });
     }
-
+    if (!pairs.length) {
+      return message.reply({ embeds: [errorEmbed({ description: 'No valid label/role pairs found.' })] });
+    }
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
       .setTitle(title)
-      .setDescription('Click a button below to get your role!')
-      .setFooter({ text: `${config.botName} • Button Roles` })
+      .setDescription(pairs.map((p) => `**${p.label}** â <@&${p.role.id}>`).join('\n'))
+      .setFooter({ text: 'ZMB OFFICIAL â¢ Button Roles' })
       .setTimestamp();
 
     const rows = [];
-    let currentRow = new ActionRowBuilder();
-    let buttonsInRow = 0;
-
-    for (const pair of rolePairs) {
-      const match = pair.match(/^(.+?)\s+<@&(\d+)>$/);
-      if (!match) {
-        return message.reply(`Invalid format: \`${pair}\`. Use \`<label> <@role>\`.`);
+    for (let i = 0; i < pairs.length; i += 5) {
+      const chunk = pairs.slice(i, i + 5);
+      const row = new ActionRowBuilder();
+      for (const p of chunk) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`br:${p.role.id}`)
+            .setLabel(p.label)
+            .setStyle(ButtonStyle.Primary)
+        );
       }
-
-      const label = match[1].trim();
-      const roleId = match[2];
-      const role = message.guild.roles.cache.get(roleId);
-
-      if (!role) {
-        return message.reply(`Role not found for \`${pair}\`.`);
-      }
-
-      const button = new ButtonBuilder()
-        .setCustomId(label)
-        .setLabel(label)
-        .setStyle(ButtonStyle.Secondary);
-
-      currentRow.addComponents(button);
-      buttonsInRow++;
-
-      if (buttonsInRow === 5) {
-        rows.push(currentRow);
-        currentRow = new ActionRowBuilder();
-        buttonsInRow = 0;
-      }
-
-      embed.addFields({ name: label, value: `<@&${roleId}>`, inline: true });
+      rows.push(row);
     }
-
-    if (buttonsInRow > 0) {
-      rows.push(currentRow);
-    }
-
-    const sentMessage = await message.channel.send({ embeds: [embed], components: rows });
-
-    for (const pair of rolePairs) {
-      const match = pair.match(/^(.+?)\s+<@&(\d+)>$/);
-      const label = match[1].trim();
-      const roleId = match[2];
-
-      await addButtonRole({
-        guildId: message.guild.id,
-        channelId: message.channel.id,
-        messageId: sentMessage.id,
-        label,
-        style: 2,
-        roleId,
-      });
-    }
-
-    const confirm = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setDescription(`Button role message created! [Click here](${sentMessage.url})`);
-
-    return message.reply({ embeds: [confirm] });
+    await message.channel.send({ embeds: [embed], components: rows.slice(0, 5) });
+    if (message.deletable) message.delete().catch(() => {});
   },
 };

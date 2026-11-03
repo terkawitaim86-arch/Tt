@@ -1,6 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
 const { setAfk, removeAfk, getAfk } = require('../../utils/afkManager');
+const { successEmbed, infoEmbed } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'afk',
@@ -8,7 +7,7 @@ module.exports = {
   category: 'General',
   usage: 'afk [reason]',
   aliases: [],
-  async execute(message, args, client) {
+  async execute(message, args) {
     const reason = args.join(' ') || 'AFK';
     const guildId = message.guild.id;
     const userId = message.author.id;
@@ -16,21 +15,24 @@ module.exports = {
     const existing = await getAfk(guildId, userId);
     if (existing) {
       await removeAfk(guildId, userId);
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setDescription(`Welcome back <@${userId}>! Your AFK status has been removed.`)
-        .setTimestamp();
-      return message.reply({ embeds: [embed] });
+      return message.reply({
+        embeds: [
+          successEmbed({
+            title: 'Welcome back',
+            description: `<@${userId}>, your AFK status has been removed.`,
+          }),
+        ],
+      });
     }
 
     await setAfk(guildId, userId, reason);
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('AFK Status Set')
-      .setDescription(`<@${userId}> is now AFK: **${reason}**`)
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [
+        infoEmbed({
+          title: 'AFK Status Set',
+          description: `<@${userId}> is now AFK: **${reason}**`,
+        }),
+      ],
+    });
   },
 };

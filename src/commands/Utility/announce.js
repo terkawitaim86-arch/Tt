@@ -1,5 +1,6 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
+const { PermissionFlagsBits } = require('discord.js');
+const { getPrefix } = require('../../utils/prefixManager');
+const { errorEmbed, usageEmbed, successEmbed, infoEmbed } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'announce',
@@ -7,31 +8,27 @@ module.exports = {
   category: 'Utility',
   usage: 'announce <#channel> <message>',
   aliases: [],
-  async execute(message, args, client) {
+  async execute(message, args) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return message.reply('You need the **Manage Messages** permission to use this command.');
+      return message.reply({ embeds: [errorEmbed({ description: 'You need the **Manage Messages** permission.' })] });
     }
-
     const channel = message.mentions.channels.first();
     const text = args.slice(1).join(' ');
-
     if (!channel || !text) {
-      return message.reply('Usage: `announce <#channel> <message>`');
+      const prefix = await getPrefix(message.guild.id);
+      return message.reply({ embeds: [usageEmbed({ command: 'announce', syntax: `${prefix}announce <#channel> <message>` })] });
     }
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('Announcement')
-      .setDescription(text)
-      .setFooter({ text: `From ${message.author.tag}` })
-      .setTimestamp();
-
-    await channel.send({ embeds: [embed] });
-
-    const confirm = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setDescription(`Announcement sent to <#${channel.id}>.`);
-
-    return message.reply({ embeds: [confirm] });
+    await channel.send({
+      embeds: [
+        infoEmbed({
+          title: 'Announcement',
+          description: text,
+          footer: `From ${message.author.tag}`,
+        }),
+      ],
+    });
+    return message.reply({
+      embeds: [successEmbed({ description: `Announcement sent to <#${channel.id}>.` })],
+    });
   },
 };

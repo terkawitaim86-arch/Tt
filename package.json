@@ -1,14 +1,19 @@
 {
   "name": "zmb-bot",
-  "version": "1.0.0",
-  "description": "ZMB Bot - A custom Discord bot with prefix commands",
+  "version": "2.0.0",
+  "description": "ZMB OFFICIAL Discord Bot and Dashboard",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1"
   }
 }

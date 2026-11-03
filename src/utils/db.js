@@ -1,113 +1,386 @@
-const { PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
-const { logAction } = require('../../utils/modLog');
-const { getPrefix } = require('../../utils/prefixManager');
-const { successEmbed, errorEmbed, usageEmbed, modEmbed } = require('../../utils/embedUtils');
 
-module.exports = {
-  name: 'ban',
-  description: 'Ban a member from the server.',
-  category: 'Moderation',
-  usage: 'ban <@member> [reason]',
-  aliases: ['b'],
-  async execute(message, args, client) {
-    if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      return message.reply({
-        embeds: [
-          errorEmbed({
-            title: 'Missing permission',
-            description: 'You need the **Ban Members** permission to use this command.',
-          }),
-        ],
-      });
+/**
+ * ZMB Database Layer
+ *
+ * Uses Supabase when configured.
+ * Falls back to in-memory storage otherwise.
+ *
+ * IMPORTANT:
+ * In-memory data is lost when the bot restarts.
+ */
+
+const supabaseUrl =
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY;
+
+const hasSupabase =
+  typeof supabaseUrl === 'string' &&
+  typeof supabaseKey === 'string' &&
+  supabaseUrl.startsWith('https://') &&
+  supabaseKey.length > 0;
+
+let supabase = null;
+
+if (hasSupabase) {
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    console.log('[DB] Using Supabase');
+  } catch (error) {
+    console.error('[DB] Supabase initialization failed:', error.message);
+  }
+}
+
+if (!supabase) {
+  console.log('[DB] Using in-memory database (data resets on restart)');
+}
+
+// --------------------------------------------------
+// IN-MEMORY DATABASE
+// --------------------------------------------------
+
+const memory = new Map();
+
+function ensureTable(name) {
+  if (!memory.has(name)) {
+    memory.set(name, []);
+  }
+
+  return memory.get(name);
+}
+
+function matchRow(row, filters) {
+  return filters.every(([key, operator, value]) => {
+    switch (operator) {
+      case 'eq':
+        return row[key] === value;
+
+      case 'in':
+        return Array.isArray(value) && value.includes(row[key]);
+
+      case 'lte':
+        return row[key] <= value;
+
+      default:
+        return false;
+    }
+  });
+}
+
+function projectColumns(row, columns) {
+  if (!row || !columns || columns.trim() === '*') {
+    return row;
+  }
+
+  const keys = columns.split(',').map((key) => key.trim());
+
+  const result = {};
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      result[key] = row[key];
+    }
+  }
+
+  return result;
+}
+
+function createMemoryQuery(table) {
+  const state = {
+    filters: [],
+    orderBy: null,
+    limitN: null,
+    single: false,
+    maybeSingle: false,
+    selectCols: '*',
+    payload: null,
+    method: 'select',
+    returning: false,
+    onConflict: null,
+  };
+
+  const api = {
+    select(columns = '*') {
+      state.selectCols = columns;
+      state.returning = state.method !== 'select';
+      return api;
+    },
+
+    insert(payload) {
+      state.method = 'insert';
+      state.payload = payload;
+      return api;
+    },
+
+    upsert(payload, options = {}) {
+      state.method = 'upsert';
+      state.payload = payload;
+      state.onConflict = options.onConflict || null;
+      return api;
+    },
+
+    update(payload) {
+      state.method = 'update';
+      state.payload = payload;
+      return api;
+    },
+
+    delete() {
+      state.method = 'delete';
+      return api;
+    },
+
+    eq(key, value) {
+      state.filters.push([key, 'eq', value]);
+      return api;
+    },
+
+    in(key, values) {
+      state.filters.push([key, 'in', values]);
+      return api;
+    },
+
+    lte(key, value) {
+      state.filters.push([key, 'lte', value]);
+      return api;
+    },
+
+    order(column, options = {}) {
+      state.orderBy = {
+        column,
+        ascending: options.ascending !== false,
+      };
+
+      return api;
+    },
+
+    limit(number) {
+      state.limitN = Math.max(0, Number(number) || 0);
+      return api;
+    },
+
+    single() {
+      state.single = true;
+      return api;
+    },
+
+    maybeSingle() {
+      state.maybeSingle = true;
+      return api;
+    },
+
+    then(resolve, reject) {
+      return Promise.resolve()
+        .then(run)
+        .then(resolve, reject);
+    },
+  };
+
+  function formatResult(rows, error = null) {
+    if (error) {
+      return { data: null, error };
     }
 
-    if (!message.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-      return message.reply({
-        embeds: [
-          errorEmbed({
-            title: 'I cannot ban',
-            description: 'I need the **Ban Members** permission.',
-          }),
-        ],
-      });
+    const projected = rows.map((row) =>
+      projectColumns(row, state.selectCols)
+    );
+
+    if (state.single || state.maybeSingle) {
+      if (projected.length === 0 && state.single) {
+        return {
+          data: null,
+          error: { message: 'No rows found' },
+        };
+      }
+
+      if (projected.length > 1) {
+        return {
+          data: null,
+          error: { message: 'Multiple rows returned' },
+        };
+      }
+
+      return {
+        data: projected[0] || null,
+        error: null,
+      };
     }
 
-    const member = message.mentions.members.first();
-    if (!member) {
-      const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix;
-      return message.reply({
-        embeds: [
-          usageEmbed({
-            command: 'ban',
-            syntax: `${prefix}ban <@member> [reason]`,
-            example: `${prefix}b @user Breaking rules`,
-            description: 'Ban a member from the server. Alias: `b`',
-          }),
-        ],
-      });
+    return {
+      data: projected,
+      error: null,
+    };
+  }
+
+  function run() {
+    const rows = ensureTable(table);
+
+    // SELECT
+    if (state.method === 'select') {
+      let result = rows.filter((row) =>
+        matchRow(row, state.filters)
+      );
+
+      if (state.orderBy) {
+        const { column, ascending } = state.orderBy;
+
+        result = result.slice().sort((a, b) => {
+          if (a[column] < b[column]) return ascending ? -1 : 1;
+          if (a[column] > b[column]) return ascending ? 1 : -1;
+          return 0;
+        });
+      }
+
+      if (state.limitN !== null) {
+        result = result.slice(0, state.limitN);
+      }
+
+      return formatResult(result);
     }
 
-    if (member.id === message.author.id) {
-      return message.reply({
-        embeds: [errorEmbed({ description: 'You cannot ban yourself.' })],
+    // INSERT
+    if (state.method === 'insert') {
+      const list = Array.isArray(state.payload)
+        ? state.payload
+        : [state.payload];
+
+      const inserted = list.map((item) => {
+        const row = {
+          id: item.id || createId(),
+          created_at: item.created_at || new Date().toISOString(),
+          ...item,
+        };
+
+        rows.push(row);
+        return row;
       });
+
+      return state.returning
+        ? formatResult(inserted)
+        : { data: null, error: null };
     }
 
-    if (member.id === client.user.id) {
-      return message.reply({
-        embeds: [errorEmbed({ description: 'I cannot ban myself.' })],
-      });
+    // UPSERT
+    if (state.method === 'upsert') {
+      const list = Array.isArray(state.payload)
+        ? state.payload
+        : [state.payload];
+
+      const results = [];
+
+      for (const item of list) {
+        const conflictKeys = state.onConflict
+          ? state.onConflict.split(',').map((key) => key.trim())
+          : item.guild_id != null && item.user_id != null
+            ? ['guild_id', 'user_id']
+            : item.guild_id != null
+              ? ['guild_id']
+              : ['id'];
+
+        const index = rows.findIndex((existing) =>
+          conflictKeys.every((key) =>
+            existing[key] === item[key]
+          )
+        );
+
+        if (index >= 0) {
+          rows[index] = {
+            ...rows[index],
+            ...item,
+          };
+
+          results.push(rows[index]);
+        } else {
+          const row = {
+            id: item.id || createId(),
+            created_at: item.created_at || new Date().toISOString(),
+            ...item,
+          };
+
+          rows.push(row);
+          results.push(row);
+        }
+      }
+
+      return {
+        data: state.returning
+          ? results.map((row) => projectColumns(row, state.selectCols))
+          : null,
+        error: null,
+      };
     }
 
-    if (!member.bannable) {
-      return message.reply({
-        embeds: [
-          errorEmbed({
-            description: 'I cannot ban that member â they may have a higher role than me.',
-          }),
-        ],
-      });
+    // UPDATE
+    if (state.method === 'update') {
+      const updated = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        if (matchRow(rows[i], state.filters)) {
+          rows[i] = {
+            ...rows[i],
+            ...state.payload,
+          };
+
+          updated.push(rows[i]);
+        }
+      }
+
+      return state.returning
+        ? formatResult(updated)
+        : { data: null, error: null };
     }
 
-    const reason = args.slice(1).join(' ') || 'No reason provided';
+    // DELETE
+    if (state.method === 'delete') {
+      const deleted = [];
+      const kept = [];
 
-    try {
-      await member.ban({ reason: `${message.author.tag}: ${reason}` });
-      await logAction({
-        guildId: message.guild.id,
-        action: 'ban',
-        targetId: member.id,
-        moderatorId: message.author.id,
-        reason,
-      });
+      for (const row of rows) {
+        if (matchRow(row, state.filters)) {
+          deleted.push(row);
+        } else {
+          kept.push(row);
+        }
+      }
 
-      return message.reply({
-        embeds: [
-          modEmbed({
-            title: 'Member Banned',
-            description: `<@${member.id}> has been banned from the server.`,
-            color: 0xed4245,
-            thumbnail: member.user.displayAvatarURL({ size: 256 }),
-            fields: [
-              { name: 'Member', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
-              { name: 'Moderator', value: `<@${message.author.id}>`, inline: true },
-              { name: 'Reason', value: reason, inline: false },
-            ],
-            footer: 'ZMB OFFICIAL â¢ Moderation',
-          }),
-        ],
-      });
-    } catch (error) {
-      console.error('[ban] Failed:', error);
-      return message.reply({
-        embeds: [
-          errorEmbed({
-            description: 'Failed to ban that member. Please try again.',
-          }),
-        ],
-      });
+      memory.set(table, kept);
+
+      return state.returning
+        ? formatResult(deleted)
+        : { data: null, error: null };
     }
+
+    return {
+      data: null,
+      error: { message: 'Unknown database operation' },
+    };
+  }
+
+  return api;
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const memoryClient = {
+  from(table) {
+    if (typeof table !== 'string' || !table.trim()) {
+      throw new Error('Invalid database table name');
+    }
+
+    return createMemoryQuery(table);
   },
 };
 
+module.exports = supabase || memoryClient;

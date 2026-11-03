@@ -1,8 +1,6 @@
-
 const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
-const { startWebServer } = require('./web/server');
 
 const client = new Client({
   intents: [
@@ -17,11 +15,39 @@ const client = new Client({
 });
 
 global.client = client;
-startWebServer(client);
-
 client.commands = new Collection();
-loadCommands(client);
-console.log('COMMANDS LOADED:', client.commands.size);
 
-loadEvents(client);
-console.log('EVENTS LOADER FINISHED');
+function initializeBot() {
+  loadCommands(client);
+  console.log(`[ZMB] Loaded ${client.commands.size} command names and aliases.`);
+
+  loadEvents(client);
+  console.log('[ZMB] Event handlers loaded.');
+}
+
+client.on('error', (error) => {
+  console.error('[Discord Client Error]', error.message);
+});
+
+client.on('shardError', (error, shardId) => {
+  console.error(`[Discord Shard ${shardId} Error]`, error.message);
+});
+
+async function startBot() {
+  const token = process.env.DISCORD_TOKEN;
+  if (!token) {
+    throw new Error('Missing DISCORD_TOKEN environment variable. Configure it in the hosting panel.');
+  }
+
+  initializeBot();
+  await client.login(token);
+  return client;
+}
+
+async function stopBot() {
+  if (client) {
+    client.destroy();
+  }
+}
+
+module.exports = { startBot, stopBot, client };

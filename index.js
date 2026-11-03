@@ -1,27 +1,30 @@
 require('dotenv').config();
 
-const { startBot } = require('./src/bot');
-
-// Process-level error handlers — log everything, never crash silently
-process.on('uncaughtException', (err, origin) => {
-  console.error('[FATAL] Uncaught Exception:');
-  console.error('  Error:', err.message);
-  console.error('  Stack:', err.stack);
-  console.error('  Origin:', origin);
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled Promise Rejection:');
-  console.error('  Reason:', reason);
-  if (reason && reason.stack) console.error('  Stack:', reason.stack);
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled Rejection:', reason);
 });
 
-process.on('SIGTERM', () => {
-  console.log('[Process] SIGTERM received — process is being terminated by the environment.');
-});
+async function start() {
+  try {
+    const { startBot } = require('./src/bot');
+    await startBot();
+    console.log('[ZMB] Bot started.');
+  } catch (error) {
+    console.error('[ZMB] Bot startup failed:', error);
+  }
 
-process.on('SIGINT', () => {
-  console.log('[Process] SIGINT received — process is being interrupted.');
-});
+  if (process.env.DASHBOARD_ENABLED === 'true') {
+    try {
+      const { startDashboard } = require('./src/dashboard/server');
+      await startDashboard();
+    } catch (error) {
+      console.error('[Dashboard] Startup failed:', error);
+    }
+  }
+}
 
-startBot();
+start();

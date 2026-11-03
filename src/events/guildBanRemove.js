@@ -1,31 +1,67 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../config');
 const { getSettings } = require('../utils/guildSettings');
 
 module.exports = {
   name: 'guildBanRemove',
+
   async execute(ban, client) {
-    const { guild, user } = ban;
+    try {
+      const { guild, user } = ban;
 
-    const settings = await getSettings(guild.id);
-    if (!settings.log_server_channel_id) return;
+      if (!guild || !user) return;
 
-    const logChannel = guild.channels.cache.get(settings.log_server_channel_id);
-    if (!logChannel) return;
+      const settings = await getSettings(guild.id);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('🔓 Member Unbanned')
-      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-      .addFields(
-        { name: 'Member', value: `${user.tag} (<@${user.id}>)`, inline: false },
-        { name: 'ID', value: user.id, inline: false }
-      )
-      .setFooter({ text: config.botName })
-      .setTimestamp();
+      if (!settings?.log_server_channel_id) return;
 
-    logChannel.send({ embeds: [embed] }).catch((err) =>
-      console.error('[guildBanRemove] Failed to send log message:', err)
-    );
+      const logChannel = guild.channels.cache.get(
+        settings.log_server_channel_id
+      );
+
+      if (!logChannel || !logChannel.isTextBased()) return;
+
+      const permissions = logChannel.permissionsFor(client.user);
+
+      if (
+        !permissions?.has(PermissionFlagsBits.ViewChannel) ||
+        !permissions?.has(PermissionFlagsBits.SendMessages) ||
+        !permissions?.has(PermissionFlagsBits.EmbedLinks)
+      ) {
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setTitle('🔓 Member Unbanned')
+        .setThumbnail(
+          user.displayAvatarURL({ size: 256 })
+        )
+        .addFields(
+          {
+            name: 'Member',
+            value: `${user.tag || user.username} (<@${user.id}>)`,
+            inline: false,
+          },
+          {
+            name: 'ID',
+            value: user.id,
+            inline: false,
+          }
+        )
+        .setFooter({ text: config.botName })
+        .setTimestamp();
+
+      await logChannel.send({
+        embeds: [embed],
+        allowedMentions: { parse: [] },
+      });
+
+    } catch (error) {
+      console.error(
+        '[guildBanRemove] Failed to process unban log:',
+        error
+      );
+    }
   },
 };

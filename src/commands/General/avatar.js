@@ -1,22 +1,68 @@
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../config');
+
+const {
+  UserFlags,
+} = require('discord.js');
+
+const { infoEmbed, errorEmbed } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'avatar',
-  description: 'Shows a member\'s avatar.',
+  description: "Shows a member's avatar.",
   category: 'General',
-  usage: 'avatar [@user]',
+  usage: 'avatar [@user/user ID]',
   aliases: ['av', 'pfp'],
-  async execute(message, args, client) {
-    const member = message.mentions.members.first() || message.member;
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`${member.user.tag}'s Avatar`)
-      .setImage(member.user.displayAvatarURL({ size: 512 }))
-      .setFooter({ text: `${config.botName}` })
-      .setTimestamp();
+  async execute(message, args) {
+    if (!message.guild) return;
 
-    return message.reply({ embeds: [embed] });
+    try {
+      let user = message.mentions.users.first();
+
+      // Allow lookup by user ID.
+      if (!user && args[0] && /^\d{17,20}$/.test(args[0])) {
+        user = await message.client.users.fetch(args[0])
+          .catch(() => null);
+      }
+
+      // Default to the command author.
+      if (!user) {
+        user = message.author;
+      }
+
+      const avatarUrl = user.displayAvatarURL({
+        size: 4096,
+        extension: 'png',
+        forceStatic: true,
+      });
+
+      const embed = infoEmbed({
+        title: `${user.username}'s Avatar`,
+        description: [
+          `[Open Full Size](${avatarUrl})`,
+          '',
+          `**User:** ${user}`,
+          `**ID:** \`${user.id}\``,
+        ].join('\n'),
+        image: avatarUrl,
+        footer: 'ZMB OFFICIAL • Avatar Viewer',
+      });
+
+      return message.reply({
+        embeds: [embed],
+        allowedMentions: {
+          users: [user.id],
+        },
+      });
+    } catch (error) {
+      console.error('[Avatar] Error:', error);
+
+      return message.reply({
+        embeds: [
+          errorEmbed({
+            description: 'I could not retrieve that avatar. Please try again.',
+          }),
+        ],
+      });
+    }
   },
 };

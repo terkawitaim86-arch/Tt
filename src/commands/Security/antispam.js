@@ -1,31 +1,68 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
-const { getSettings, updateSettings } = require('../../utils/guildSettings');
+const supabase = require('./db');
 
-module.exports = {
-  name: 'antispam',
-  description: 'Removed: anti-spam protection has been disabled for this bot.',
-  category: 'Security',
-  usage: 'antispam',
-  aliases: ['spamconfig'],
-  async execute(message, args, client) {
-    if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      return message.reply('You need the **Manage Server** permission to use this command.');
+const userMessages = new Map();
+
+function trackMessage(userId) {
+  const now = Date.now();
+  if (!userMessages.has(userId)) {
+    userMessages.set(userId, []);
+  }
+
+  const messages = userMessages.get(userId);
+  messages.push(now);
+
+  const cutoff = now - 10000;
+  const recent = messages.filter((t) => t > cutoff);
+  userMessages.set(userId, recent);
+
+  return recent;
+}
+
+async function checkAntiSpam(message, settings) {
+  if (!settings.anti_spam_enabled) return false;
+  if (message.member.permissions.has('ManageMessages')) return false;
+
+  const recent = trackMessage(message.author.id);
+  const windowMs = settings.anti_spam_interval_seconds * 1000;
+  const now = Date.now();
+  const inWindow = recent.filter((t) => t > now - windowMs);
+
+  if (inWindow.length >= settings.anti_spam_threshold) {
+    const duration = settings.anti_spam_duration_seconds;
+
+    if (settings.anti_spam_action === 'timeout') {
+      try {
+        await message.member.timeout(duration * 1000, 'Anti-spam: too many messages');
+      } catch (e) {
+        console.error('[AntiSpam] Failed to timeout:', e.message);
+      }
+    } else if (settings.anti_spam_action === 'kick') {
+      try {
+        await message.member.kick('Anti-spam: too many messages');
+      } catch (e) {
+        console.error('[AntiSpam] Failed to kick:', e.message);
+      }
     }
 
-    const settings = await getSettings(message.guild.id);
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('Anti-Spam Removed')
-      .setDescription('Anti-spam protection has been disabled for ZMB and is no longer enforced.')
-      .addFields(
-        { name: 'Status', value: 'Disabled', inline: true },
-        { name: 'Configuration', value: 'No longer used', inline: true },
-        { name: 'Note', value: 'This command is kept only as a compatibility stub.', inline: false }
-      )
-      .setFooter({ text: `${config.botName} • Deprecated feature` })
-      .setTimestamp();
+    userMessages.set(message.author.id, []);
 
-    return message.reply({ embeds: [embed] });
-  },
-};
+    await supabase.from('moderation_logs').insert({
+      guild_id: message.guild.id,
+      action: 'anti_spam',
+      target_id: message.author.id,
+      moderator_id: message.client.user.id,
+      reason: `Anti-spam triggered (${inWindow.length} messages in ${settings.anti_spam_interval_seconds}s)`,
+      duration: settings.anti_spam_action === 'timeout' ? `${duration}s` : null,
+    });
+
+    return true;
+  }
+
+  return false;
+}
+
+function clearUser(userId) {
+  userMessages.delete(userId);
+}
+
+module.exports = { trackMessage, checkAntiSpam, clearUser };

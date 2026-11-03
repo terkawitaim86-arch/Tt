@@ -1,4 +1,5 @@
 const supabase = require('./db');
+
 async function setAfk(guildId, userId, reason) {
   const { error } = await supabase
     .from('afk_status')
@@ -52,13 +53,4 @@ async function checkAllAfk(guildId, userIds) {
     .eq('guild_id', guildId)
     .in('user_id', userIds);
 
-  if (error || !data) return new Map();
-
-  const map = new Map();
-  for (const row of data) {
-    map.set(row.user_id, row);
-  }
-  return map;
-}
-
-module.exports = { setAfk, removeAfk, getAfk, checkAllAfk };
+  if (error || 

@@ -1,4 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
+
+const { infoEmbed, errorEmbed } = require('../../utils/embedUtils');
 const config = require('../../config');
 
 module.exports = {
@@ -7,27 +8,86 @@ module.exports = {
   category: 'General',
   usage: 'botinfo',
   aliases: ['info'],
-  async execute(message, args, client) {
-    const uptime = process.uptime();
-    const days = Math.floor(uptime / 86400);
-    const hours = Math.floor((uptime % 86400) / 3600);
-    const minutes = Math.floor((uptime % 3600) / 60);
-    const seconds = Math.floor(uptime % 60);
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`About ${config.botName}`)
-      .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-      .addFields(
-        { name: 'Servers', value: `${client.guilds.cache.size}`, inline: true },
-        { name: 'Users', value: `${client.users.cache.size}`, inline: true },
-        { name: 'Commands', value: `${client.commands.size}`, inline: true },
-        { name: 'Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
-        { name: 'Library', value: 'discord.js v14', inline: true },
-        { name: 'Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true }
-      )
-      .setTimestamp();
+  execute(message, args, client) {
+    try {
+      if (!client?.user) {
+        return message.reply({
+          embeds: [
+            errorEmbed({
+              description: 'Bot information is not available right now.',
+            }),
+          ],
+        });
+      }
 
-    return message.reply({ embeds: [embed] });
+      const uptime = Math.floor(process.uptime());
+
+      const days = Math.floor(uptime / 86400);
+      const hours = Math.floor((uptime % 86400) / 3600);
+      const minutes = Math.floor((uptime % 3600) / 60);
+      const seconds = uptime % 60;
+
+      const commandCount = new Set(
+        [...client.commands.values()].map((command) => command.name)
+      ).size;
+
+      const embed = infoEmbed({
+        title: config.botName || 'ZMB OFFICIAL',
+        description:
+          'Your all-in-one Discord community bot, built for moderation, XP, logging, and server management.',
+        thumbnail: client.user.displayAvatarURL({ size: 256 }),
+
+        fields: [
+          {
+            name: 'Servers',
+            value: `\`${client.guilds.cache.size}\``,
+            inline: true,
+          },
+          {
+            name: 'Cached Users',
+            value: `\`${client.users.cache.size}\``,
+            inline: true,
+          },
+          {
+            name: 'Commands',
+            value: `\`${commandCount}\``,
+            inline: true,
+          },
+          {
+            name: 'Uptime',
+            value: `\`${days}d ${hours}h ${minutes}m ${seconds}s\``,
+            inline: true,
+          },
+          {
+            name: 'WebSocket Ping',
+            value: `\`${Math.round(client.ws.ping)}ms\``,
+            inline: true,
+          },
+          {
+            name: 'Node.js',
+            value: `\`${process.version}\``,
+            inline: true,
+          },
+        ],
+
+        footer: 'ZMB OFFICIAL • Bot Information',
+      });
+
+      return message.reply({
+        embeds: [embed],
+        allowedMentions: { repliedUser: false },
+      });
+    } catch (error) {
+      console.error('[BotInfo] Command failed:', error);
+
+      return message.reply({
+        embeds: [
+          errorEmbed({
+            description: 'Something went wrong while retrieving bot information.',
+          }),
+        ],
+      });
+    }
   },
 };

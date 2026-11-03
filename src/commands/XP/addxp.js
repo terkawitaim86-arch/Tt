@@ -1,6 +1,8 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
-const { setXp, getXpData } = require('../../utils/xpManager');
+
+const { PermissionFlagsBits } = require('discord.js');
+const { addXp, getXpData } = require('../../utils/xpManager');
+const { getPrefix } = require('../../utils/prefixManager');
+const { errorEmbed, usageEmbed, successEmbed } = require('../../utils/embedUtils');
 
 module.exports = {
   name: 'addxp',
@@ -8,36 +10,29 @@ module.exports = {
   category: 'XP & Levels',
   usage: 'addxp <@member> <amount>',
   aliases: [],
-  async execute(message, args, client) {
+  async execute(message, args) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      return message.reply('You need the **Manage Server** permission to use this command.');
+      return message.reply({ embeds: [errorEmbed({ description: 'You need the **Manage Server** permission.' })] });
     }
-
     const member = message.mentions.members.first();
     const amount = parseInt(args[1], 10);
-
     if (!member || !amount || amount < 1) {
-      return message.reply('Usage: `addxp <@member> <amount>`');
+      const prefix = await getPrefix(message.guild.id);
+      return message.reply({ embeds: [usageEmbed({ command: 'addxp', syntax: `${prefix}addxp <@member> <amount>` })] });
     }
-
-    const existing = await getXpData(message.guild.id, member.id);
-    const newTotal = (existing ? existing.xp : 0) + amount;
-    const success = await setXp(message.guild.id, member.id, newTotal);
-
-    if (!success) {
-      return message.reply('Failed to add XP. Please try again.');
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle('XP Added')
-      .addFields(
-        { name: 'Member', value: `<@${member.id}>`, inline: true },
-        { name: 'Added', value: `+${amount}`, inline: true },
-        { name: 'Total', value: `${newTotal}`, inline: true }
-      )
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+    const result = await addXp(message.guild.id, member.id, amount);
+    if (!result) return message.reply({ embeds: [errorEmbed({ description: 'Failed to add XP.' })] });
+    return message.reply({
+      embeds: [
+        successEmbed({
+          title: 'XP Added',
+          description: `Added **${amount}** XP to <@${member.id}>.`,
+          fields: [
+            { name: 'Level', value: `${result.level}`, inline: true },
+            { name: 'Total XP', value: `${result.xp}`, inline: true },
+          ],
+        }),
+      ],
+    });
   },
 };

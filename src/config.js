@@ -1,6 +1,6 @@
 module.exports = {
   defaultPrefix: ',',
-  botName: 'ZMB Bot',
+  botName: 'ZMB OFFICIAL',
   embedColor: 0x5865F2,
 
   categories: [
@@ -52,7 +52,3 @@ module.exports = {
     {
       name: 'Security',
       emoji: 'sec',
-      comingSoon: false,
-    },
-  ],
-};

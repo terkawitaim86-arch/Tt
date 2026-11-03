@@ -1,0 +1,301 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b0d12;
+  color: #f1f2f5;
+  font-family: Inter, Arial, sans-serif;
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 245px;
+  background: #10131a;
+  border-right: 1px solid #242832;
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar h2 {
+  font-size: 30px;
+  margin: 0 0 8px;
+}
+
+.sidebar h2 span {
+  color: #7289ff;
+}
+
+.muted {
+  color: #777f90;
+  font-size: 12px;
+}
+
+nav {
+  margin-top: 40px;
+}
+
+nav a {
+  display: block;
+  padding: 14px;
+  margin-bottom: 8px;
+  color: #aeb5c4;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+nav a.active {
+  background: #202b4c;
+  color: white;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  color: #aeb5c4;
+  font-size: 11px;
+}
+
+.status-dot {
+  display: inline-block;
+  background: #35cf91;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+main {
+  flex: 1;
+  padding: 40px;
+  min-width: 0;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 35px;
+}
+
+h1 {
+  font-size: 30px;
+  margin: 8px 0;
+}
+
+.online {
+  color: #35cf91;
+  font-size: 11px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+
+.editor,
+.preview-section {
+  background: #11151e;
+  border: 1px solid #242a37;
+  border-radius: 14px;
+  padding: 25px;
+  min-width: 0;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+label {
+  display: block;
+  margin: 20px 0 8px;
+  font-size: 13px;
+  color: #cbd0dc;
+}
+
+input:not([type="color"]),
+textarea {
+  width: 100%;
+  background: #0b0e15;
+  border: 1px solid #2a3040;
+  border-radius: 8px;
+  padding: 13px;
+  color: white;
+  outline: none;
+  font: inherit;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #7289ff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+input[type="color"] {
+  width: 48px;
+  height: 38px;
+  background: none;
+  border: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+button {
+  border: none;
+  padding: 13px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.primary {
+  background: #5865f2;
+  color: white;
+}
+
+.secondary {
+  background: #252b38;
+  color: white;
+}
+
+.discord {
+  display: flex;
+  gap: 12px;
+  background: #292b30;
+  padding: 20px;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.bot-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: #5865f2;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: bold;
+}
+
+.message {
+  min-width: 0;
+  flex: 1;
+}
+
+.bot-tag {
+  background: #5865f2;
+  font-size: 9px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  margin-left: 5px;
+}
+
+.embed {
+  margin: 12px 0;
+  background: #202127;
+  border-left: 4px solid #5865f2;
+  border-radius: 4px;
+  padding: 15px;
+  position: relative;
+  overflow: hidden;
+}
+
+.embed-content {
+  position: relative;
+}
+
+.embed h3 {
+  font-size: 16px;
+  margin: 12px 0;
+}
+
+.embed p {
+  color: #dbdee3;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.embed-author,
+.embed-footer {
+  font-size: 12px;
+  color: #b5bac1;
+}
+
+.thumbnail {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  float: right;
+  border-radius: 5px;
+}
+
+.main-image {
+  display: block;
+  width: 100%;
+  max-height: 250px;
+  object-fit: contain;
+  margin-top: 15px;
+  border-radius: 5px;
+}
+
+.preview-note {
+  color: #777f90;
+  font-size: 12px;
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  body {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 15px;
+  }
+
+  .sidebar-bottom {
+    display: none;
+  }
+
+  nav {
+    display: flex;
+    gap: 5px;
+    margin-top: 15px;
+  }
+
+  nav a {
+    font-size: 12px;
+    padding: 10px;
+  }
+
+  main {
+    padding: 20px 14px;
+  }
+
+  header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}

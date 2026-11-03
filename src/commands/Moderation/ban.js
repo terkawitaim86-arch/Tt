@@ -18,26 +18,24 @@ module.exports = {
   description: 'Ban a member from the server.',
   category: 'Moderation',
   usage: 'ban <@member> [reason]',
-  aliases: ['b'],
+  aliases: ['b', 'banish'],
 
   async execute(message, args) {
     if (!message.guild || !message.member) return;
 
-    // Check moderator permissions.
-    if (!message.member.permissions.has(
-      PermissionFlagsBits.BanMembers
-    )) {
+    // Moderator permissions
+    if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
       return message.reply({
         embeds: [
           errorEmbed({
-            title: 'Missing Permission',
+            title: 'Permission Denied',
             description: 'You need the **Ban Members** permission to use this command.',
           }),
         ],
       });
     }
 
-    // Check bot permissions.
+    // Bot permissions
     const botMember = message.guild.members.me;
 
     if (
@@ -47,14 +45,14 @@ module.exports = {
       return message.reply({
         embeds: [
           errorEmbed({
-            title: 'Missing Bot Permission',
-            description: 'I need the **Ban Members** permission to perform this action.',
+            title: 'Bot Permission Missing',
+            description: 'I need the **Ban Members** permission to ban members.',
           }),
         ],
       });
     }
 
-    // Find the target member.
+    // Target member
     const member = message.mentions.members.first();
 
     if (!member) {
@@ -64,20 +62,21 @@ module.exports = {
       return message.reply({
         embeds: [
           usageEmbed({
-            command: 'ban',
+            command: 'Ban Member',
             syntax: `${prefix}ban <@member> [reason]`,
-            example: `${prefix}b @user Breaking rules`,
-            description: 'Ban a member from the server. Alias: `b`',
+            example: `${prefix}ban @John Breaking server rules`,
+            description: 'Permanently ban a member from this server.',
           }),
         ],
       });
     }
 
-    // Prevent invalid targets.
+    // Target validation
     if (member.id === message.author.id) {
       return message.reply({
         embeds: [
           errorEmbed({
+            title: 'Invalid Target',
             description: 'You cannot ban yourself.',
           }),
         ],
@@ -88,6 +87,7 @@ module.exports = {
       return message.reply({
         embeds: [
           errorEmbed({
+            title: 'Invalid Target',
             description: 'I cannot ban myself.',
           }),
         ],
@@ -98,13 +98,14 @@ module.exports = {
       return message.reply({
         embeds: [
           errorEmbed({
+            title: 'Protected Member',
             description: 'The server owner cannot be banned.',
           }),
         ],
       });
     }
 
-    // Check moderator role hierarchy.
+    // Moderator hierarchy
     const isOwner = message.guild.ownerId === message.author.id;
 
     if (
@@ -116,18 +117,20 @@ module.exports = {
       return message.reply({
         embeds: [
           errorEmbed({
-            description: 'You cannot ban someone with an equal or higher role than yours.',
+            title: 'Role Hierarchy',
+            description: 'You cannot ban a member with an equal or higher role than yours.',
           }),
         ],
       });
     }
 
-    // Check bot role hierarchy.
+    // Bot hierarchy
     if (!member.bannable) {
       return message.reply({
         embeds: [
           errorEmbed({
-            description: 'I cannot ban that member. Their highest role may be above mine.',
+            title: 'Cannot Ban Member',
+            description: 'My highest role must be above the target member’s highest role.',
           }),
         ],
       });
@@ -138,12 +141,11 @@ module.exports = {
     ).slice(0, MAX_REASON_LENGTH);
 
     try {
-      // Perform the ban.
       await member.ban({
         reason: `${message.author.tag}: ${reason}`.slice(0, 512),
       });
 
-      // Log separately so logging failure doesn't undo a successful ban.
+      // Moderation logging
       try {
         await logAction({
           guildId: message.guild.id,
@@ -153,43 +155,50 @@ module.exports = {
           reason,
         });
       } catch (logError) {
-        console.error('[Ban] Moderation logging failed:', logError);
+        console.error('[Ban] Logging failed:', logError);
       }
 
-      // Confirm successful ban.
+      // Success embed
       return message.reply({
         embeds: [
           modEmbed({
-            title: 'Member Banned',
-            description: `<@${member.id}> has been banned from the server.`,
+            title: '🔨 Member Banned',
+            description: `**${member.user.tag}** has been successfully banned from the server.`,
             color: 0xED4245,
-            thumbnail: member.user.displayAvatarURL({
-              size: 256,
-            }),
+            thumbnail: member.user.displayAvatarURL({ size: 256 }),
             fields: [
               {
-                name: 'Member',
-                value: `${member.user.tag}\n\`${member.id}\``,
+                name: '👤 Banned Member',
+                value: `<@${member.id}>\n\`${member.id}\``,
                 inline: true,
               },
               {
-                name: 'Moderator',
+                name: '🛡️ Moderator',
                 value: `<@${message.author.id}>`,
                 inline: true,
               },
               {
-                name: 'Reason',
+                name: '📝 Reason',
                 value: reason,
                 inline: false,
               },
+              {
+                name: '📌 Action',
+                value: 'Permanent Ban',
+                inline: true,
+              },
+              {
+                name: '🏠 Server',
+                value: message.guild.name,
+                inline: true,
+              },
             ],
-            footer: 'ZMB OFFICIAL • Moderation',
+            footer: 'ZMB OFFICIAL • Moderation System',
           }),
         ],
-        allowedMentions: {
-          parse: [],
-        },
+        allowedMentions: { parse: [] },
       });
+
     } catch (error) {
       console.error('[Ban] Failed:', error);
 
@@ -197,7 +206,7 @@ module.exports = {
         embeds: [
           errorEmbed({
             title: 'Ban Failed',
-            description: 'I could not ban that member. Check my permissions and try again.',
+            description: 'The ban could not be completed. Check my permissions and the target member’s role hierarchy.',
           }),
         ],
       });

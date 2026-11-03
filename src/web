@@ -1,3 +1,4 @@
+
 const express = require('express');
 const path = require('path');
 
@@ -20,22 +21,7 @@ function startWebServer(client) {
     });
   });
 
-  app.get('/api/guilds', (req, res) => {
-    if (!client.isReady()) {
-      return res.status(503).json({
-        error: 'Bot is not ready.'
-      });
-    }
-
-    const guilds = client.guilds.cache.map(guild => ({
-      id: guild.id,
-      name: guild.name
-    }));
-
-    res.json(guilds);
-  });
-
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 25454;
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[ZMB Website] Running on port ${PORT}`);

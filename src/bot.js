@@ -1,12 +1,4 @@
-
-const {
-  Client,
-  GatewayIntentBits,
-  Partials,
-  Collection,
-  EmbedBuilder,
-} = require('discord.js');
-
+const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
 
@@ -19,148 +11,70 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildBans,
   ],
-  partials: [
-    Partials.Channel,
-    Partials.Reaction,
-    Partials.Message,
-    Partials.GuildMember,
-  ],
+  partials: [Partials.Channel, Partials.Reaction, Partials.Message, Partials.GuildMember],
 });
 
-global.client = client;
 client.commands = new Collection();
 
 loadCommands(client);
-console.log('[ZMB] Commands loaded:', client.commands.size);
-
 loadEvents(client);
-console.log('[ZMB] Event loader finished');
 
-// Discord client error logging
-client.on('error', (error) => {
-  console.error('[Discord Client Error]', error);
+// Client-level error and disconnect logging
+client.on('error', (err) => {
+  console.error('[Discord Client Error]', err.message);
+  if (err.stack) console.error('  Stack:', err.stack);
 });
 
-client.on('shardError', (error, shardId) => {
-  console.error(`[Shard Error] Shard ${shardId}:`, error);
+client.on('shardError', (err, shardId) => {
+  console.error(`[Shard Error] Shard ${shardId}:`, err.message);
 });
 
 client.on('shardDisconnect', (event, shardId) => {
-  console.warn(
-    `[Shard Disconnect] Shard ${shardId} disconnected. Code: ${event.code}`
-  );
+  console.warn(`[Shard Disconnect] Shard ${shardId} disconnected. Code: ${event.code}, Reason: ${event.reason}`);
 });
 
 client.on('shardReconnecting', (shardId) => {
-  console.log(`[Shard Reconnecting] Shard ${shardId} is reconnecting.`);
+  console.log(`[Shard Reconnecting] Shard ${shardId} is reconnecting...`);
 });
 
 client.on('shardResume', (shardId, replayedEvents) => {
-  console.log(
-    `[Shard Resume] Shard ${shardId} resumed. Replayed ${replayedEvents} events.`
-  );
+  console.log(`[Shard Resume] Shard ${shardId} resumed. Replayed ${replayedEvents} events.`);
 });
 
-// Reminder system
-let reminderInterval = null;
-let reminderCheckRunning = false;
-
-async function processReminders() {
-  if (reminderCheckRunning) return;
-
-  reminderCheckRunning = true;
-
-  try {
-    const {
-      getDueReminders,
-      markReminderComplete,
-    } = require('./utils/reminderManager');
-
-    const config = require('./config');
-    const reminders = await getDueReminders();
-
-    if (!Array.isArray(reminders) || reminders.length === 0) {
-      return;
-    }
-
-    for (const reminder of reminders) {
-      try {
-        const channel = await client.channels.fetch(
-          reminder.channel_id
-        ).catch(() => null);
-
-        if (!channel || !channel.isTextBased() || !channel.send) {
-          console.warn(
-            `[Reminders] Could not access channel for reminder ${reminder.id}.`
-          );
-          continue;
+client.on('clientReady', () => {
+  const { getDueReminders, markReminderComplete } = require('./utils/reminderManager');
+  const interval = setInterval(async () => {
+    try {
+      const due = await getDueReminders();
+      for (const reminder of due) {
+        const channel = client.channels.cache.get(reminder.channel_id);
+        if (channel) {
+          const { EmbedBuilder } = require('discord.js');
+          const config = require('./config');
+          const embed = new EmbedBuilder()
+            .setColor(config.embedColor)
+            .setTitle('Reminder')
+            .setDescription(`<@${reminder.user_id}>, you asked me to remind you:\n\n**${reminder.message}**`)
+            .setTimestamp();
+          channel.send({ content: `<@${reminder.user_id}>`, embeds: [embed] }).catch(() => {});
         }
-
-        const embed = new EmbedBuilder()
-          .setColor(config.embedColor || 0x5865F2)
-          .setTitle('Reminder')
-          .setDescription(
-            `<@${reminder.user_id}>, you asked me to remind you:\n\n**${reminder.message}**`
-          )
-          .setTimestamp();
-
-        await channel.send({
-          content: `<@${reminder.user_id}>`,
-          embeds: [embed],
-          allowedMentions: {
-            users: [reminder.user_id],
-          },
-        });
-
         await markReminderComplete(reminder.id);
-
-        console.log(
-          `[Reminders] Successfully delivered reminder ${reminder.id}.`
-        );
-      } catch (error) {
-        console.error(
-          `[Reminders] Failed to process reminder ${reminder.id}:`,
-          error.message
-        );
       }
+    } catch (e) {
+      // Silently ignore — don't crash the bot
     }
-  } catch (error) {
-    console.error('[Reminders] Reminder check failed:', error);
-  } finally {
-    reminderCheckRunning = false;
-  }
-}
-
-client.once('clientReady', () => {
-  console.log(`[ZMB] Logged in as ${client.user.tag}`);
-
-  if (reminderInterval) {
-    clearInterval(reminderInterval);
-  }
-
-  processReminders();
-
-  reminderInterval = setInterval(() => {
-    processReminders();
   }, 30000);
+
+  client._reminderInterval = interval;
 });
 
 async function startBot() {
   const token = process.env.DISCORD_TOKEN;
-
   if (!token) {
-    console.error(
-      '[ZMB] Missing DISCORD_TOKEN. Add your bot token to the environment variables.'
-    );
+    console.error('Missing DISCORD_TOKEN — add your bot token to the .env file.');
     process.exit(1);
   }
-
-  try {
-    await client.login(token);
-  } catch (error) {
-    console.error('[ZMB] Failed to log in:', error);
-    throw error;
-  }
+  await client.login(token);
 }
 
 module.exports = { startBot };

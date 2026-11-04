@@ -1,94 +1,13 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config');
 const { getPrefix } = require('../../utils/prefixManager');
-
-module.exports = {
-  name: 'help',
-  description: 'Shows all commands or details for a specific command.',
-  category: 'General',
-  usage: 'help [command]',
-  aliases: ['h', 'commands'],
-  async execute(message, args, client) {
-    const prefix = message.guild
-      ? await getPrefix(message.guild.id)
-      : config.defaultPrefix;
-
-    if (args[0]) {
-      return showCommandHelp(message, args[0], client, prefix);
-    }
-
-    return showFullHelp(message, client, prefix);
-  },
-};
-
-function showFullHelp(message, client, prefix) {
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${config.botName} — Help Menu`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription('Here are all the available and planned features.')
-    .setTimestamp();
-
-  for (const category of config.categories) {
-    const header = `${category.emoji} ${category.name}`;
-
-    if (category.comingSoon) {
-      embed.addFields({
-        name: header,
-        value: `*Coming Soon* — ${category.description || 'Planned feature'}`,
-        inline: false,
-      });
-    } else {
-      const seen = new Set();
-      const commands = [];
-      for (const [key, cmd] of client.commands) {
-        if (cmd.category === category.name && !seen.has(cmd.name)) {
-          seen.add(cmd.name);
-          commands.push(`\`${prefix}${cmd.name}\``);
-        }
-      }
-
-      embed.addFields({
-        name: header,
-        value: commands.length > 0 ? commands.join(' • ') : 'No commands yet',
-        inline: false,
-      });
-    }
-  }
-
-  embed.setFooter({
-    text: `Use ${prefix}help <command> for details • Prefix: ${prefix}`,
-  });
-
-  return message.reply({ embeds: [embed] });
-}
-
-function showCommandHelp(message, commandName, client, prefix) {
-  const command = client.commands.get(commandName.toLowerCase());
-
-  if (!command) {
-    return message.reply(`No command found named \`${commandName}\`.`);
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(`${prefix}${command.name}`)
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription(command.description || 'No description available.')
-    .addFields(
-      { name: 'Category', value: command.category || 'Unknown', inline: true },
-      { name: 'Usage', value: `\`${prefix}${command.usage || command.name}\``, inline: true }
-    )
-    .setFooter({ text: `${config.botName} • Prefix: ${prefix}` })
-    .setTimestamp();
-
-  if (command.aliases && command.aliases.length > 0) {
-    embed.addFields({
-      name: 'Aliases',
-      value: command.aliases.map((a) => `\`${a}\``).join(', '),
-      inline: true,
-    });
-  }
-
-  return message.reply({ embeds: [embed] });
-}
+const { COLORS } = require('../../utils/embeds');
+const { permName } = require('../../utils/permissions');
+const COMMAND_PERMS = { ban: PermissionFlagsBits.BanMembers, unban: PermissionFlagsBits.BanMembers, kick: PermissionFlagsBits.KickMembers, timeout: PermissionFlagsBits.ModerateMembers, untimeout: PermissionFlagsBits.ModerateMembers, warn: PermissionFlagsBits.ModerateMembers, warnings: PermissionFlagsBits.ModerateMembers, clear: PermissionFlagsBits.ManageMessages, lock: PermissionFlagsBits.ManageChannels, unlock: PermissionFlagsBits.ManageChannels, slowmode: PermissionFlagsBits.ManageChannels, jail: PermissionFlagsBits.ModerateMembers, unjail: PermissionFlagsBits.ModerateMembers, setjail: PermissionFlagsBits.ManageGuild, setlogchannel: PermissionFlagsBits.ManageGuild, logsettings: PermissionFlagsBits.ManageGuild, viewlogs: PermissionFlagsBits.ManageGuild, antispam: PermissionFlagsBits.ManageGuild, setwelcome: PermissionFlagsBits.ManageGuild, setgoodbye: PermissionFlagsBits.ManageGuild, setautorole: PermissionFlagsBits.ManageGuild, xpconfig: PermissionFlagsBits.ManageGuild, setlevelreward: PermissionFlagsBits.ManageGuild, customcommand: PermissionFlagsBits.ManageGuild, reactionrole: PermissionFlagsBits.ManageRoles, buttonrole: PermissionFlagsBits.ManageRoles, embed: PermissionFlagsBits.ManageMessages, addxp: PermissionFlagsBits.ManageGuild, removexp: PermissionFlagsBits.ManageGuild, setprefix: PermissionFlagsBits.ManageGuild, announce: PermissionFlagsBits.ManageMessages };
+module.exports = { name: 'help', description: 'Shows all commands or details for a specific command.', category: 'General', usage: 'help [command]', aliases: ['h', 'commands'], async execute(message, args, client) { const prefix = message.guild ? await getPrefix(message.guild.id) : config.defaultPrefix; return args[0] ? showCommandHelp(message, args[0], client, prefix) : showOverview(message, client, prefix); } };
+function showOverview(message, client, prefix) { const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle('ZMB').setDescription('A modular Discord moderation bot with prefix commands.\n' + `**Prefix:** \`${prefix}\`\n\nUse the dropdown menu below to browse commands by category.\n` + `Type \`${prefix}help <command>\` for detailed usage.`).addFields({ name: 'Categories', value: config.categories.map((c) => `**${c.name}** — ${c.description}`).join('\n'), inline: false }).setThumbnail(client.user.displayAvatarURL({ size: 256 })).setFooter({ text: 'ZMB • Select a category below' }).setTimestamp(); const select = new StringSelectMenuBuilder().setCustomId('help_category').setPlaceholder('Select a category').addOptions(config.categories.map((cat) => ({ label: cat.name, description: cat.description.slice(0, 100), value: cat.name }))); return message.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] }); }
+function showCategoryEmbed(client, prefix, categoryName, member) { const category = config.categories.find((c) => c.name === categoryName); if (!category) return null; const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle(`ZMB — ${category.name}`).setDescription(category.description).setFooter({ text: `ZMB • Prefix: ${prefix}` }).setTimestamp(); const seen = new Set(); for (const cmdName of category.commands) { if (seen.has(cmdName)) continue; seen.add(cmdName); const cmd = client.commands.get(cmdName); if (!cmd) { embed.addFields({ name: `\`${prefix}${cmdName}\``, value: 'No description available.', inline: false }); continue; } const perm = COMMAND_PERMS[cmd.name]; const hasPerm = !perm || member.permissions.has(perm); embed.addFields({ name: `\`${prefix}${cmd.name}\`${perm && !hasPerm ? ' | *Locked*' : ''}`, value: `${cmd.description || 'No description.'}${perm ? ` | Requires: **${permName(perm)}**` : ''}`, inline: false }); } return embed; }
+function showCommandHelp(message, commandName, client, prefix) { const command = client.commands.get(commandName.toLowerCase()); if (!command) return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.error).setDescription(`No command found named \`${commandName}\`.`).setFooter({ text: 'ZMB' })] }); const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle(`\`${prefix}${command.name}\``).setDescription(command.description || 'No description available.').setThumbnail(client.user.displayAvatarURL({ size: 256 })).addFields({ name: 'Category', value: command.category || 'Unknown', inline: true }, { name: 'Usage', value: `\`${prefix}${command.usage || command.name}\``, inline: true }).setFooter({ text: `ZMB • Prefix: ${prefix}` }).setTimestamp(); if (command.aliases?.length) embed.addFields({ name: 'Aliases', value: command.aliases.map((a) => `\`${a}\``).join(', '), inline: true }); const perm = COMMAND_PERMS[command.name]; if (perm) embed.addFields({ name: 'Required Permission', value: `**${permName(perm)}**\n${message.member.permissions.has(perm) ? 'You have this permission.' : 'You do **not** have this permission.'}`, inline: false }); return message.reply({ embeds: [embed] }); }
+module.exports.showCategoryEmbed = showCategoryEmbed;
+module.exports.showOverview = showOverview;
+module.exports.COMMAND_PERMS = COMMAND_PERMS;
